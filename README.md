@@ -1,122 +1,235 @@
-<h1 align="center">EVO PTT - Walkie Talkie Solution for Businesses</h1>
-<br/>
+# Mumla OLED
 
-![Alt text](https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/EVO-PTT-feature-graphic.png "EVO PTT - The Evolution in PTT communication")
-<br/>
-<br/>
+```text
+       ⠀⠀⠀⠀⠀⠀⣀⣤⣤⣶⣶⣤⣤⣀⠀⠀⠀⠀⠀⠀
+       ⠀⠀⠀⠀⣴⣿⣿⠿⢿⣿⣿⣿⣿⣿⣿⣦
+       ⠀⠀⠀⠀⠟⣩⣶⣶⣶⣄⣸⣿⣿⣿⣿⣿⠀⠀⠀⠀
+       ⠀⠀⣴⣿⠼⠿⠿⠿⠿⠿⠿⠿⠿⠿⠿⠿⣿⣦⠀⠀
+       ⠀⠀⢻⣿⢺⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡷⣿⡟
+       ⠀⠀⠀⠉⠉⢿⣿⣩⣿⣿⣿⣿⣍⣿⡿⠉⠁⠀⠀⠀
+       ⠀⠀⠀⠀⠀⠀⢹⡿⠿⢿⡿⠿⢿⡏
+       ⠀⠀⠀⠀⠀⠀⠛⠁⠀⠀⠀⠀⠈⠛
+```
 
-Designed with Businesses in mind, EVO PTT is a complete Walkie Talkie (Push To Talk) solution that provides:
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Platform: Android](https://img.shields.io/badge/Platform-Android%205.0%2B%20(API%2021%2B)-green.svg)](https://developer.android.com)
+[![Target SDK: 36](https://img.shields.io/badge/Target%20SDK-36%20(Android%2016)-orange.svg)](https://developer.android.com)
+[![Flavor: 100% FOSS](https://img.shields.io/badge/Flavor-100%25%20FOSS-brightgreen.svg)](#building-from-source)
 
-► Safe communication of users and supervisors with the EVO PTT Android App.
-<br/>
-► Easy administration and management of users and companies with the EVO PTT Web Panel.
-<br/>
-<br/>
+**Mumla OLED** is a native, low-latency, privacy-conscious [Mumble](https://www.mumble.info) voice chat client for Android. Tailored for OLED/AMOLED displays and gaming/multitasking workloads, it combines a battery-saving true black interface with an overhauled C++ native audio DSP pipeline, real-time neural noise suppression (RNNoise), Mumble 1.5 protocol features, and a redesigned non-intrusive floating voice HUD.
 
-Demo testing
----------------------
-• To try the EVO PTT Android App as a User for free, open the Android Application, accept the required permissions and tap on the DEMO LOGIN button! 
-<br/>
-• To try the EVO PTT Web Panel as a Company Manager for free, go to https://evoptt.com and click on the DEMO LOGIN button!
-<br/>
-<br/>
+> [!NOTE]
+> *"Mumla OLED"* is the working project name for this modernization fork. A comprehensive rebranding and permanent identity are planned for a future milestone.
 
-Main Features
----------------------
-- Easy to understand and use UI.
-- Fast and low latency real time voice communication,
-- Seamless geolocation monitoring of EVO PTT Users location.
-- Superior voice compression CODECs and low data consumption.
-- High security voice encryption.
-- Works over any network condition (2G, 3G, 4G or Wifi) with Network Type Switching mode to switch seamlessly between Data and WiFi without disconnecting.
-- Native integration with Android Walkie Talkie devices (F22, F22+, F25 and more).
-- Ability to work with screen off in Android Walkie Talkie devices.
-- SOS button function with location reporting.
-- Real time location tracking of Mobile Users to the EVO PTT Android App and the EVO PTT Web Panel.
-- Easy User management through the EVO PTT Web Panel.
-- Mobile Users log in on a per-company basis for better user isolation and security (using secure docker containers).
-- Start on boot, Auto-login, Remember Login Credentials and Auto-reconnect when Internet connection is lost.
-- Stay Awake mode to keep the screen on.
-- EVO PTT stays active in background so you can use other apps while listening other Users in real time.
-- Compatible with the latest version of Android 10, Android Studio IDE and Gradle tools.
-- Ideal for security companies, cleaning companies, taxi drivers, police or fire departments, lorry drivers and more!
-- Competitive subscription and one off pay pricing plans!
-- Ability for source code purchase and app rebranding!
-<br/>
+---
 
-EVO PTT Android App Screenshots
--------------------------------
-![Alt text](https://play-lh.googleusercontent.com/Cslsv82yPZBkKXSQAGdtVgWt3A_bPlufh96eLG3GpEdDKFAXru0ouNvVuQ4IgMy89hoi=w720-h380-rw "Login Screen") 
-![Alt text](https://play-lh.googleusercontent.com/DT87zUtjqABcRVc6QOhFyZGDQuahWbQ208wOytS7ZsIMjvkkISURclIHLrNCPVG3Qg=w720-h380-rw "Server Screen") 
-![Alt text](https://play-lh.googleusercontent.com/5NeEB5Nhk3y6W-zaNyNHrC_RcNXQxr467ZjuX0jzajno5gXb0-g2UGXuiK9SunxkKJ0=w720-h380-rw "Chat Screen") 
-![Alt text](https://play-lh.googleusercontent.com/gy2OL0GOau1zLrV7mMqNfJgz9dAv1KOTXNLF65VagdyFJe3uoOcjpz7fb5extm0LZ0E=w720-h380-rw "MapView Screen")
-<br/>
-<br/>
+## Lineage & History
 
-EVO PTT Web Panel Screenshots
--------------------------------
-<p float="left">
-<img src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/webpanel1.png" width="400" title="Login Page">
-<img src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/webpanel2.png" width="400" title="Server Status Page">
-<img src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/webpanel3.png" width="400" title="Companies Page">
-<img src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/webpanel4.png" width="400" title="Managers Page">
-<img src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/webpanel5.png" width="400" title="Users Page">
-<img src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/webpanel6.png" width="400" title="Users Location Page">
-</p>
-<br/>
-<br/>
+Mumla OLED is the latest evolution in a lineage of open-source Android Mumble clients:
 
-Downloads
----------------------
+```mermaid
+flowchart LR
+    A["Plumble<br/><i>Andrew Comminos</i><br/>(2013–2015)<br/>Backend: Jumble"] --> B["Mumla<br/><i>Daniel Lublin</i><br/>(2020–2026)<br/>Backend: Humla"]
+    B --> C["Mumla OLED<br/><i>360ied & Contributors</i><br/>(2026–present)<br/>Modernized Monorepo"]
+```
 
-<strong>EVO PTT is available on Google Play, Samsung Galaxy Store and Huawei AppGallery</strong>
-<br /><br />
-<p float="left">
-<a href="https://play.google.com/store/apps/details?id=com.theofilos.chamalis.evoptt">
-  <img alt="Get it on Google Play" src="https://developer.android.com/images/brand/en_generic_rgb_wo_45.png" />
-</a>
-<img alt="Available on Samsung Galaxy Store" src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/samsung.png" style="vertical-align:center;" height="45"/>
-<img alt="Explore it on Huawei AppGallery" src="https://github.com/Theofilos-Chamalis/QR-PTT-PushToTalk/blob/master/githubResources/huawei.png" height="45"/>
-</p>
+1. **[Plumble](https://github.com/acomminos/Plumble)** (by Andrew Comminos): The original open-source Android Mumble client and its standalone protocol engine, **Jumble**.
+2. **[Mumla](https://gitlab.com/quite/mumla)** (by Daniel Lublin): Forked from Plumble (renaming Jumble to **Humla**) to keep the client alive, migrating to newer Android SDKs and modern Gradle plugin versions.
+3. **Mumla OLED**: A modernization fork created to tackle a decade of accumulated technical debt. It brings the client up to parity with modern Mumble 1.5 protocol features, replaces legacy Java audio processing with high-performance native C++ DSP, optimizes the interface for modern OLED screens, hardens user privacy, and strips unmaintained legacy bloat.
 
-<br/>
+---
 
-\*  Any communication through the demo channel is public. <br/>
-*\* For a data consumption comparison of EVO PTT with our competitors click <a target="_blank" href="https://www.dropbox.com/s/39qpqhx88bqj5nl/EVO%20PTT%20Benchmark.pdf?dl=0"> HERE</a>.
+## Core Capabilities: What Does the App Do?
 
-<br/>
+Mumla OLED connects your Android device directly to self-hosted or public Mumble voice servers:
 
-Partnership, Services & Pricing
------------------------
-Our services include plans with customized and private (per customer) servers based on the amount of users as well as the ability to buy the full source (front end and back end) alongside with redistribution and rebranding rights. If you are interested in using EVO PTT or a rebranded version of it based on your company's brand & logo, feel free to contact us at <b>info@evoptt.com</b> for more information.
-<br/>
-<br/>
-<br/>
+- **Low-Latency Voice Communication**: Communicate in real-time with high-performance Opus audio encoding and decoding (obsolete legacy CELT and Speex codecs have been purged for security and binary efficiency).
+- **Flexible Transmission Modes**:
+  - **Voice Activity Detection (VAD)**: Dual-threshold hysteresis VAD with adaptive voice leveling and pre-speech ring buffering.
+  - **Push-to-Talk (PTT)**: Ultra-responsive on-screen button, volume key triggers, or a persistent hot corner overlay.
+  - **Continuous Transmission**: For dedicated microphones and streaming environments.
+- **Full Channel Tree Navigation**: Browse channel hierarchies, drag/move users (with appropriate ACL permissions), access linked channels, and inspect user information and ping statistics.
+- **Rich Text Chat & Inline Media**: Receive and send channel and direct messages with embedded images, hyperlinks, and density-scaled emojis.
+- **Strong Cryptographic Authentication**: Generate, export, and import PKCS#12 / X.509 client certificates to authenticate securely without passwords.
+- **Persistent Foreground Service**: Maintain voice connectivity while running games, navigating GPS, or with the screen turned off, with interactive lockscreen controls.
 
+---
 
-Building on GNU/Linux
----------------------
+## How It Differs from Upstream Mumla ("The Modernization")
 
-Make sure you have the following installed on your linux machine: Android Studio, Oracle java,
-ant, awk, make, git, the Android SDK and the Android NDK. Then fork or download the original Jumble libraries and execute the commands below:
+Mumla OLED is not merely a reskin; it represents an extensive overhaul across protocol parity, native audio engineering, UI/UX responsiveness, privacy, and dependency modernizations.
 
-    git submodule update --init --recursive
-    ndk-build -C libraries/Jumble/src/main/jni/
-    ./gradlew assembleDebug
+### 1. Protocol Parity & Mumble 1.5 Features
 
-This is necessary in order to download the libraries that the initial application uses.
-Keep in mind that throughout the proccess you should use chmod command on the whole project file
-to give it the right permissions. Finally, download the files of my project and overwrite the old
-ones. If you encounter any problem throughout the procedure feel free to contact 
-.
+- **Channel Listening**: Upstream Mumla only supported being in a single channel. Mumla OLED introduces full support for Mumble 1.5 channel listening—listen to multiple channels simultaneously without leaving your active channel, with independent listening volume and visual ear indicator icons.
+- **UDP Netcode & Serialization Fixes**: Fixed negative varint serialization bugs in Protobuf UDP packets (`HumlaUDP`), eliminated mode switch chat log spam, and suppressed false-alarm UDP ping warnings.
+- **Privacy-First Protocol Handshake**: Client operating system and platform version strings are intentionally omitted during the initial server version handshake, preventing device fingerprinting and server-side tracking.
+- **De-Bloated Network Stack**: Removed defunct legacy Tor / Orbot SOCKS plumbing (which was prone to socket descriptor leaks and connection hangs) and removed the unmaintained public server browser in favor of fast, reliable direct connections.
 
+### 2. Ground-Up Native Audio Pipeline & DSP Overhaul
 
-Contributing	
-============
+Upstream Mumla relied on legacy Java-side audio preprocessing and Speex DSP routines that caused garbage collector pauses, audio dropouts, and JNI lock contention. Mumla OLED replaced this with a dedicated C++ native DSP engine inside `:libraries:humla`:
 
-Coding
-------
+- **RNNoise Deep Learning Noise Suppression**: Embedded recurrent neural network (RNN) trained for real-time speech enhancement. Uses memory-mapped quantized model weights loaded directly from Android assets at runtime for near-zero CPU and battery overhead.
+- **Adaptive Voice Leveler (AGC)**: Native automatic gain leveler (`AdaptiveLeveler.cpp`) providing smooth volume normalization. Voice leveler gain is decoupled from VAD energy calculation, preventing loud background sounds or sudden gain increases from triggering accidental transmissions.
+- **2nd-Order Biquad High-Pass Filter**: Cleanly rolls off low-frequency desk vibrations, mic handling rustle, and room HVAC rumble before speech reaches the encoder.
+- **Hysteresis VAD with Pre-Speech Ring Buffer**: Dual-threshold VAD with a 250 ms hangover hold prevents stuttering and word clipping. An 80 ms native lookahead ring buffer captures pre-trigger speech syllables so the beginnings of sentences are never cut off. Audio transmit settings are un-gated for independent threshold calibration.
+- **Audiophile Transmission Bitrate**: Raised the audio quality slider cap from legacy limits up to **192 kbps** Opus, displayed dynamically in kbps.
+- **Hardware AEC Removal**: Completely purged Android hardware Acoustic Echo Cancellation (AEC) plumbing. Hardware AEC implementations on modern Android OEMs frequently caused distorted or silent microphone inputs; removing it resolved severe compatibility bugs.
+- **Native Test Suite**: Comprehensive C++ audio DSP test suite (`run_audio_tests.cpp`) verifying leveler dynamics, filter responses, and VAD thresholds.
 
-Standard FOSS project procedure applies; fork and submit a PR or just email us at info@evoptt.com !
+### 3. Modernized User Interface & OLED Optimization
 
-Please use Transifex for translations, not pull requests.
+- **True OLED Black Theme**: Native UI reimagined with absolute `#000000` backgrounds, maximizing battery savings on OLED/AMOLED displays and reducing eye strain in dark environments.
+- **Minimalist Floating Voice HUD (Overlay)**:
+  - Rebuilt from scratch using compact, text-hugging "pills" displaying active speakers.
+  - **Corner Pinning**: Snaps the HUD cleanly to any screen corner with non-intrusive layout and touch pass-through to background apps and games.
+  - **Instant Responsiveness**: Removed slow legacy window animations for instant frame updates during intense gaming.
+  - **Persistent State & Quick Toggle**: Overlay state survives app restarts, with a dedicated instant toggle action directly in the persistent notification.
+- **Re-Engineered PTT Hot Corner**: Latency-optimized push-to-talk corner with soft-keyboard awareness (automatically hides when typing) and vivid visual state feedback.
+- **Resilient Chat & Inline Media**:
+  - Chat history persists seamlessly through server reconnects and network transitions instead of clearing.
+  - Overhauled `MumbleImageGetter` with asynchronous background decoding, LRU in-memory caching, SSRF security guards against malicious intranet endpoints, responsive display-width scaling (preventing horizontal image overflows), robust percent-encoded base64 handling, and high-resolution image uploads up to 1600x1600.
+  - Replaced the legacy clear chat cross icon with a theme-consistent trash can action.
+
+### 4. Resiliency, Security & Platform Modernization
+
+- **Wakeful Auto-Reconnect Engine**: Exponential backoff reconnect manager with active network callbacks (`ConnectivityManager.NetworkCallback`), socket connect timeouts, and leak-free wake lock management that survives airplane mode and Wi-Fi/cellular handovers.
+- **Lockscreen & Media Notifications**: Modern Android foreground notification with synchronized mute, deafen, and overlay action buttons that stay in lockstep with the audio service.
+- **Configurable TTS Engine**: Choose your preferred Text-To-Speech engine in settings; automatically suppresses annoying TTS speech floods on manual disconnects.
+- **Standard Platform Cryptography**: Eliminated heavy BouncyCastle / SpongyCastle dependencies in favor of standard platform cryptography (Conscrypt / Java SE) and a lightweight in-tree X.509 v3 DER encoder, saving over 1 MB of compressed DEX bloat and 3,000 classes.
+- **Protobuf JavaLite & APK Shrinking**: Migrated from full Java Protobuf to `protobuf-javalite`, stripped post-quantum cryptographic tables, dropped obsolete 32-bit x86 native binaries, and enabled aggressive R8 minification and resource shrinking for a compact, lightweight APK.
+- **Target Android 16 (API 36)**: Fully compliant with modern Android requirements: Android 13+ runtime notification permissions (`POST_NOTIFICATIONS`), explicit `RECEIVER_NOT_EXPORTED` broadcast flags, and modern Storage Access Framework file handling.
+
+---
+
+## Architectural Layout
+
+The repository is organized as an integrated monorepo:
+
+```text
+mumla-oled/
+├── app/                              # Android client UI (:app)
+│   ├── src/main/java/se/lublin/mumla/ # Activities, fragments, overlay HUD, preferences
+│   └── src/main/res/                 # Layouts, themes (OLED Black), drawables
+├── libraries/humla/                  # Core protocol & audio library (:libraries:humla)
+│   ├── src/main/java/se/lublin/humla/ # Mumble protocol, Netty/TCP/UDP, service state
+│   ├── src/main/jni/                 # Native C/C++ audio subsystem
+│   │   ├── audio_engine/             # RNNoise wrapper, Adaptive Leveler, Biquad filter, VAD, JitterBuffer
+│   │   ├── opus/                     # Submodule: Xiph.Org Opus codec
+│   │   └── rnnoise/                  # Submodule: Mozilla RNNoise neural network
+│   └── src/test/cpp/                 # Native C++ DSP unit test harness
+├── scripts/                          # Automated development & verification tooling
+│   ├── worktree.py                   # Isolated Git worktree manager
+│   ├── check.sh                      # Pre-commit & pre-completion verification suite
+│   ├── commit.py                     # Git 50/72 commit message formatter & validator
+│   └── test_native_audio.sh          # Standalone native C++ DSP test runner
+└── flake.nix                         # Hermetic, reproducible Nix development environment
+```
+
+---
+
+## Building from Source
+
+### Prerequisites
+
+Mumla OLED is built exclusively as a **100% FOSS** client without proprietary Google Play dependencies.
+
+- **JDK**: Java 21 (OpenJDK recommended)
+- **Android SDK**: Compile SDK 36, Min SDK 21
+- **Android NDK**: Version `27.2.12479018`
+- **Supported ABIs**: `arm64-v8a`, `armeabi-v7a`, `x86_64` (obsolete 32-bit `x86` is no longer built or packaged)
+- **Submodules**: Git submodules must be checked out for native libraries (`opus`, `rnnoise`).
+
+### Option A: Hermetic Build with Nix (Recommended)
+
+If you use [Nix](https://nixos.org/) with flakes enabled, the repository includes a complete dev shell with the exact JDK, Android SDK/NDK, Python, and build dependencies:
+
+```bash
+# Enter the dev shell
+nix develop
+
+# Build Debug APK
+./gradlew assembleFossDebug
+
+# Build Release APK
+./gradlew assembleFossRelease
+```
+
+Or run directly without entering the interactive shell:
+
+```bash
+nix develop --command ./gradlew assembleFossRelease
+```
+
+Release builds (`assemble`, `bundle`, `package` or `install` for a release variant, including a plain `./gradlew build`) fail unless a local, uncommitted `app/signing.gradle` defines `signingConfigs.release`. Debug builds are unaffected.
+
+Release APK output will be located at:
+`app/build/outputs/apk/foss/release/mumla-foss-release.apk`
+
+### Option B: Conventional Build with Gradle
+
+1. Clone the repository and initialize native submodules:
+
+   ```bash
+   git clone --recursive https://github.com/360ied/mumla-oled.git
+   cd mumla-oled
+   ```
+
+   *(If already cloned, run `git submodule update --init --recursive`)*
+
+2. Set your environment variables:
+
+   ```bash
+   export JAVA_HOME=/path/to/jdk-21
+   export ANDROID_SDK_ROOT=/path/to/android-sdk
+   ```
+
+3. Build the FOSS debug or release variant:
+
+   ```bash
+   ./gradlew assembleFossDebug
+   ```
+
+### Running Tests & Verification
+
+Before testing or verifying changes, ensure all unit tests and native checks pass:
+
+```bash
+# Fast pre-commit test suite (Python tests, native C++ audio tests, Gradle unit tests)
+./scripts/check.sh
+
+# Full test suite
+./scripts/check.sh --full
+```
+
+---
+
+## Installing & Running
+
+You can install and launch the debug build directly on an attached device or emulator via ADB:
+
+```bash
+# Install Debug APK
+adb install -r app/build/outputs/apk/foss/debug/mumla-foss-debug.apk
+
+# Launch Application
+adb shell am start -n se.lublin.mumla.oled15/se.lublin.mumla.app.MumlaActivity
+```
+
+---
+
+## Acknowledgments & Credits
+
+Mumla OLED stands on the shoulders of the open-source community:
+
+- **[Andrew Comminos](https://github.com/acomminos)**: Original creator of **Plumble** and **Jumble**.
+- **[Daniel Lublin](https://lublin.se)**: Creator and maintainer of **Mumla** and **Humla**.
+- **The [Mumble](https://www.mumble.info) Team**: For developing and maintaining the Mumble protocol and desktop client, including the push-to-talk audio chirps (`ptt_on.ogg`, `ptt_off.ogg`) distributed under the 3-Clause BSD License (Copyright (C) 2005-2023 The Mumble Developers).
+- **[Jean-Marc Valin](https://jmvalin.ca/) & the Xiph.Org / Mozilla Teams**: For the Opus codec, Speex DSP, and the RNNoise deep learning noise suppression project.
+
+---
+
+## License
+
+Mumla OLED is free and open-source software licensed under the **GNU General Public License v3.0 or later** ([GPL-3.0-or-later](LICENSE)).

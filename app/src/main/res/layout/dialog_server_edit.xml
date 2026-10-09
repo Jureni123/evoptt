@@ -1,104 +1,102 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (C) 2014 Andrew Comminos
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
-    android:weightSum="1">
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/server_edit_url_password_warning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:text="@string/server_edit_url_password_warning"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="?attr/colorError"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/server_edit_name_title"
         android:layout_width="wrap_content"
-        android:layout_height="1dp"
-        android:text="@string/server_label"
-        android:visibility="invisible" />
+        android:layout_height="wrap_content"
+        android:text="@string/server_label" />
 
     <EditText
         android:id="@+id/server_edit_name"
         android:layout_width="fill_parent"
-        android:layout_height="0dp"
-        android:inputType="text"
-        android:text="Terracom"
-        android:visibility="invisible" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="0dp"
-        android:text="@string/server_host"
-        android:visibility="invisible" />
+        android:layout_height="wrap_content"
+        android:inputType="text" />
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp">
+        android:layout_height="wrap_content">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/server_host" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/server_port" />
+    </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
         <EditText
             android:id="@+id/server_edit_host"
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:inputType="textUri"
-            android:text="plan.gr"
-            android:visibility="invisible" />
-
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:inputType="textUri" />
         <EditText
             android:id="@+id/server_edit_port"
             android:layout_width="wrap_content"
+            android:maxEms="5"
             android:layout_height="wrap_content"
-            android:hint="@string/default_server_port"
+            android:hint="@string/default_"
             android:inputType="number"
-            android:visibility="invisible">
-
+            android:maxLength="5">
         </EditText>
-
     </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/server_username"></TextView>
+        android:text="@string/server_username" />
 
     <EditText
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
         android:id="@+id/server_edit_username"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="text"></EditText>
+        android:inputType="text" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/server_password"></TextView>
+        android:text="@string/server_password" />
 
     <EditText
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
         android:id="@+id/server_edit_password"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="textPassword"></EditText>
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal">
-
-        <TextView
-            android:id="@+id/textView2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal|top"
-            android:gravity="center"
-            android:text="For testing enter User ID: demo and leave User PIN empty"
-            android:textAlignment="center"
-            android:textAppearance="?android:attr/textAppearanceMedium"
-            android:textColor="@color/holo_blue_dark"
-            android:textStyle="bold" />
-    </FrameLayout>
-
-    <TextView
-        android:id="@+id/server_edit_error"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:padding="8dp"
-        android:text="Error: error text here."
-        android:textAppearance="?android:attr/textAppearanceSmall"
-        android:textColor="@color/holo_red_dark"
-        android:visibility="gone" />
+        android:inputType="textPassword" />
 </LinearLayout>

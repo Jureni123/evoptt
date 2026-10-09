@@ -17,6 +17,39 @@ local.properties
 
 # Java
 *.class
+hs_err_pid*.log
+replay_pid*.log
 
-# MacOS
-.DS_Store
+# direnv
+.direnv/
+.gradle-home/
+
+# for working with agents
+bug_report/
+
+# editor / vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+[._]*.un~
+tags
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Generated RNNoise Model
+libraries/humla/src/main/jni/rnnoise-build/generated/
+libraries/humla/src/main/assets/rnnoise_model.bin
+
+# for pi coding agent
+/plans/
+
+# Git worktrees
+/.worktrees/

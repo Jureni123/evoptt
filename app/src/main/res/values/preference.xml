@@ -1,105 +1,140 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (C) 2014 Andrew Comminos
+  ~ Copyright (C) 2022 Allan Nordhøy
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
 <resources>
-    <string name="inputMethodVoice">Voice Activity</string>
-    <string name="inputMethodPtt">Push to Talk</string>
+    <string name="inputMethodVoice">Voice activity</string>
+    <string name="inputMethodPtt">Push-to-talk</string>
     <string name="inputMethodContinuous">Continuous</string>
 
+    <!-- Theme names -->
+    <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
-    <string name="theme_solarized_light">Solarized Light</string>
-    <string name="theme_solarized_dark">Solarized Dark</string>
+    <string name="theme_black">OLED Black</string>
 
-    <string name="call_mode_speakerphone">Speakerphone</string>
-    <string name="call_mode_voice_call">Voice Call</string>
+    <!-- Language -->
+    <string name="language_system">System default</string>
 
-    <string name="hot_corner_none">None</string>
-    <string name="hot_corner_top_left">Top Left</string>
-    <string name="hot_corner_bottom_left">Bottom Left</string>
-    <string name="hot_corner_top_right">Top Right</string>
-    <string name="hot_corner_bottom_right">Bottom Right</string>
+    <!-- Hot corner -->
+    <string name="hot_corner_none">Off</string>
+    <string name="hot_corner_top_left">↖ Top left</string>
+    <string name="hot_corner_bottom_left">↙ Bottom left</string>
+    <string name="hot_corner_top_right">Top right ↗</string>
+    <string name="hot_corner_bottom_right">Bottom right ↘</string>
 
+    <!-- About -->
     <string name="about">About</string>
-    <string name="aboutSum">Legal and contact information</string>
-    <string name="acknowledgements">Contact Info</string>
-    <string name="acknowledgementsSum">Learn more about us</string>
+    <string name="acknowledgements">Contributors</string>
+    <string name="acknowledgementsSum">See who contributed to Mumla (web link)</string>
     <string name="licenses">Licenses</string>
 
-	<string name="authentication">Authentication</string>
-	<string name="authenticationSum">Manage and create certificates</string>
-	<string name="certificateFile">Certificate File</string>
-	<string name="certificateFileSum">The path of the P12 certificate you wish to use, placed in the \&quot;QRPushToTalk\&quot; folder on external storage.</string>
-	<string name="certificatePassword">Certificate Password</string>
-	<string name="certificatePasswordSum">The password for your PKCS12 certificate. (optional)</string>
-	<string name="audioInput">Audio Input</string>
-	<string name="audioInputMethodSum">The method of audio input.</string>
-	<string name="audioInputMethod">Transmit Mode</string>
-    <string name="audioInputVolume">Microphone Volume</string>
-    <string name="audioInputVolumeSum">Microphone volume multiplier used to artificially normalize audio.</string>
-	<string name="callMode">Call Mode</string>
-	<string name="callModeSum">The call mode of QRPushToTalk, whether to act as a voice call or speakerphone.</string>
-	<string name="detectionThreshold">Detection Threshold</string>
-	<string name="detectionThresholdSum">The minimum amplitude required for voice to be detected (only applicable for voice activity).</string>
-	<string name="pttKey">Push to Talk Key</string>
-	<string name="pttKeySum">A hardware key to bind to Push to Talk.</string>
-	<string name="hotCorner">Push to Talk Hot Corner</string>
-	<string name="hotCornerSum">A specified corner of the screen that, when pressed down, will push to talk throughout Android.</string>
-	<string name="general">General</string>
-	<string name="generalSum">Adjust general settings</string>
-	<string name="appearance">Appearance</string>
-	<string name="appearanceSum">Tweak the app\'s visuals</string>
-	<string name="themeSum">The app-wide theme.</string>
-	<string name="theme">Theme</string>
-	<string name="advancedAudio">Advanced</string>
-    <string name="forceTcp">Force TCP</string>
-    <string name="forceTcpSum">Whether to force TCP (disable UDP) communications.</string>
-	<string name="audio">Audio</string>
-	<string name="audioSum">Adjust audio input and output</string>
-	<string name="audioSampleRate">Input Sample Rate</string>
-    <string name="audioSampleRateSum">The preferred audio sample rate. Not all rates are supported by all devices.</string>
-	<string name="noCert">No Certificate</string>
-	<string name="chatNotifications">Chat Notifications</string>
-	<string name="chatNotificationsSum">Show notifications when someone writes in chat.</string>
-    <string name="defaultUsername">Default Username</string>
-    <string name="defaultUsernameSum">The default username to use when connecting to servers.</string>
-    <string name="defaultUsernameDefault">GuardID_GuardPIN</string>
-	<string name="certificateGenerate">Generate Certificate</string>
-	<string name="certificateGenerateSum">Generates a new self-signed QRPushToTalk certificate. Recommended for beginners.</string>
-	<string name="pttSettings">Push to Talk Settings</string>
-	<string name="pttSettingsSum">Configure Push to Talk if it is enabled.</string>
-	<string name="voiceActivitySettings">Voice Activity Settings</string>
-	<string name="voiceActivitySettingsSum">Configure Voice Activity if it is enabled.</string>
-	<string name="audioOutput">Audio Output</string>
-	<string name="disableOpus"> Codec</string>
-	<string name="disableOpusSum">Disable Opus support for Mumble 1.2.4 servers.</string>
-	<string name="hidePtt">Hide Push to Talk Button</string>
-	<string name="hidePttSum">Hides the push to talk button when in push to talk mode. Useful if you use hot corners or a hardware key exclusively.</string>
-    <string name="useTts">Text-to-Speech</string>
-    <string name="useTtsSum">Enable Text-to-Speech for incoming messages.</string>
-    <string name="togglePtt">Toggle Push to Talk</string>
-    <string name="togglePttSum">Toggles push to talk on and off when pressed.</string>
-    <string name="autoReconnect">Auto Reconnect</string>
-    <string name="autoReconnectSum">Automatically try to re-connect when the connection is temporary lost.</string>
-    <string name="useTor">Connect via Tor</string>
-    <string name="useTorSum">Requires Orbot app</string>
-    <string name="inputQuality">Input Quality</string>
-    <string name="inputQualitySum">The target input quality in bps.</string>
-    <string name="pressKey">Press a hardware key to bind to push-to-talk.</string>
-    <string name="pressKeyInfo">Note: due to limitations in Android, the app must be open to use hardware key push to talk.</string>
-    <string name="loadImagesSum">Whether to load external images in chat.</string>
-    <string name="loadImages">Load External Images</string>
-    <string name="clearServerCertificates">Clear Server Certificates</string>
-    <string name="clearServerCertificatesSum">Clear all allowed server certificates from QRPushToTalk\'s trust database.</string>
+    <string name="authentication">Authentication</string>
+    <string name="audioInputMethodSum">How audio transmission is activated.</string>
+    <string name="audioInputMethod">Transmit mode</string>
+    <string name="audioInputVolume">Microphone volume</string>
+    <string name="audioInputVolumeSum">Level to normalize audio to.</string>
+    <string name="detectionThreshold">Detection threshold</string>
+    <string name="detectionThresholdSum">Minimum volume level for detecting voice (when transmit mode is \"Voice activity\").</string>
+    <string name="pttKey">Push-to-talk key</string>
+    <string name="pttKeySum">Use a physical button to transmit audio.</string>
+    <string name="hotCorner">Push-to-talk corner</string>
+    <string name="hotCornerSum">Press a screen corner to transmit audio throughout Android.</string>
+    <string name="general">General</string>
+    <string name="appearance">Appearance</string>
+    <string name="theme">Theme</string>
+    <string name="language">Language</string>
+    <string name="advancedAudio">Advanced</string>
+    <string name="forceTcp">Only TCP</string>
+    <string name="forceTcpSum">Turns off UDP for communication.</string>
+    <string name="audio">Audio</string>
+    <string name="chatNotifications">Chat notifications</string>
+    <string name="chatNotificationsSum">Shown for new chat messages.</string>
+    <string name="pref_notification_style">Persistent notification style</string>
+    <string name="pref_media_key_mute">Pause key toggles mute</string>
+    <string name="pref_media_key_mute_sum">Let headset and lockscreen pause/play keys toggle self-mute. Only applies to the media notification style.</string>
+    <string name="pref_media_key_mute_tts">Announce mute changes</string>
+    <string name="pref_media_key_mute_tts_sum">Speak a confirmation when the pause key toggles mute.</string>
+    <string name="notification_style_bigtext">BigText style (standard)</string>
+    <string name="notification_style_media">Media style (media controls)</string>
+    <string name="defaultUsername">Default username</string>
+    <string name="defaultUsernameSum">Prefilled name used when adding a server.</string>
+    <string name="defaultUsernameDefault">Mumla_User</string>
+    <string name="certificateGenerate">Generate certificate</string>
+    <string name="certificateGenerateSum">Generates a new self-signed Mumla certificate. Recommended for beginners.</string>
+    <string name="pttSettings">Push-to-talk settings</string>
+    <string name="voiceActivitySettings">Voice activity settings</string>
+    <string name="hidePtt">Hide push-to-talk button</string>
+    <string name="hidePttSum">Only useful if you use Push-to-talk corner or physical key.</string>
+    <string name="useTts">Text-to-speech</string>
+    <string name="useTtsSum">Read incoming message aloud using speech synthesis.</string>
+    <string name="ttsEngine">Text-to-speech engine</string>
+    <string name="ttsEngineSum">Engine used to read messages aloud: %1$s</string>
+    <string name="ttsEngineSystemDefault">System default</string>
+    <string name="ttsEngineNoneAvailable">No alternative engines installed. Install a text-to-speech engine such as RHVoice to choose it here.</string>
+    <string name="ttsEngineDefaultSuffix">(default)</string>
+    <string name="shortTtsMessages">Shortened text-to-speech messages</string>
+    <string name="shortTtsMessagesSum">Shorten the messages by only reading the domain names of links.</string>
+    <string name="togglePtt">Sticky Push-to-talk button</string>
+    <string name="togglePttSum">Push-to-talk button toggles transmission on/off. No need to hold it.</string>
+    <string name="inputQuality">Microphone input quality</string>
+    <string name="inputQualitySum">Preferred rate of data transmitted (in kilobits per second).</string>
+    <string name="pttButtonHeight">Push-to-talk button height</string>
+    <string name="pttButtonHeightSum">Change the vertical length of the push-to-talk button.</string>
+    <string name="pressKey">Press a physical key to use it for push-to-talk.</string>
+    <string name="pressKeyInfo">The app must be open to use this (due to Android restrictions).</string>
+    <string name="loadImagesSum">Downloads and shows pictures in chat.</string>
+    <string name="loadImages">External images</string>
+    <string name="clearServerCertificates">Clear server certificates</string>
+    <string name="clearServerCertificatesSum">Remove all trusted server certificates from Mumla.</string>
     <string name="version">Version</string>
-    <string name="halfDuplex">Half Duplex Mode</string>
-    <string name="halfDuplexSum">Mutes device sound when using push to talk, removing audio feedback for channel users.</string>
-    <string name="handsetMode">Handset Mode</string>
+    <string name="halfDuplex">One-way audio</string>
+    <string name="halfDuplexSum">Mutes other playback during push-to-talk to avoid audio loops/feedback.</string>
+    <string name="handsetMode">Handset</string>
     <string name="handsetModeSum">Uses the front speaker and proximity sensor to simulate a traditional phone call.</string>
-    <string name="pttSound">Push to Talk Sound</string>
-    <string name="pttSoundSum">Play sound effect when Push to Talk button is pressed.</string>
-    <string name="preprocessor_enabled">Enable Input Preprocessor</string>
-    <string name="preprocessor_enabled_sum">Enable the Speex preprocessor for ambient noise suppression and volume normalization.</string>
+    <string name="bluetoothHeadset">Two-way Bluetooth</string>
+    <string name="bluetoothHeadsetSum">Use the headset microphone too (call-style routing). When off, Bluetooth plays audio only.</string>
+    <string name="pttSound">Push-to-talk sound</string>
+    <string name="pttSoundSum">Play sound effect when pressing the push-to-talk button.</string>
+    <string name="adaptive_leveler">Automatic Voice Leveling</string>
+    <string name="adaptive_leveler_sum">Automatically balances microphone loudness to a consistent volume without clipping.</string>
     <string name="audio_per_packet">Audio per packet</string>
     <string name="audio_per_packet_sum">The length of audio per voice packet.</string>
-    <string name="stay_awake">Stay Awake</string>
-    <string name="stay_awake_sum">When QRPushToTalk is open, the screen will not be turned off.</string>
+    <string name="stay_awake">Stay awake</string>
+    <string name="stay_awake_sum">Keeps the screen on when Mumla is open.</string>
+    <string name="pref_certificate_title">Certificate</string>
+    <string name="pref_certificate_summary">The default to use when connecting to a server.</string>
+    <string name="pref_import_certificate_title">Import certificate</string>
+    <string name="pref_import_certificate_summary">Import one from external storage.</string>
+    <string name="pref_export_certificate_title">Export certificate</string>
+    <string name="pref_export_certificate_summary">Exports one to external storage.</string>
+    <string name="pref_show_user_count">Show channel user count</string>
+    <string name="pref_show_user_count_summary">Shows the number of users in channel subtrees.</string>
+    <string name="pref_start_up_in_pinned_mode">Pinned channels mode</string>
+    <string name="pref_start_upIn_pinned_mode_sum">Enables \"Pinned channels\" mode after connecting (hides channels that are not pinned).</string>
+    <string name="pref_overlay">Channel overlay</string>
+    <string name="pref_overlay_summary">Display a floating voice HUD showing active channel members.</string>
+    <string name="pref_overlay_placement">Overlay placement</string>
+    <string name="overlay_placement_floating">Floating (draggable)</string>
+    <string name="overlay_placement_top_left">↖ Top left (pinned, touch-through)</string>
+    <string name="overlay_placement_top_right">Top right ↗ (pinned, touch-through)</string>
+    <string name="overlay_placement_bottom_left">↙ Bottom left (pinned, touch-through)</string>
+    <string name="overlay_placement_bottom_right">Bottom right ↘ (pinned, touch-through)</string>
+    <string name="pref_talk_broadcast_title">Allow Tasker \"TALK\" broadcasts</string>
+    <string name="pref_talk_broadcast_summary">Let automation apps drive push-to-talk via the TALK broadcast while connected. Any installed app can send this broadcast.</string>
 </resources>

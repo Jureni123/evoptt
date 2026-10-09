@@ -1,0 +1,268 @@
+/*
+ * Copyright (C) 2014 Andrew Comminos
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
+
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.2'
+    }
+}
+apply plugin: 'com.android.library'
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+dependencies {
+    api 'com.google.protobuf:protobuf-javalite:4.36.2'
+
+    implementation 'org.jetbrains:annotations:26.1.0'
+    implementation 'org.minidns:minidns-hla:1.0.5'
+    implementation 'org.minidns:minidns-android21:1.0.5'
+    testImplementation 'junit:junit:4.13.2'
+}
+
+allprojects {
+    tasks.withType(JavaCompile) {
+        // TODO include deprecations at some point, but currently they are *many*
+        options.compilerArgs << "-Xlint:all" << "-Xlint:-deprecation" << "-Xlint:-dep-ann" << "-Xlint:-this-escape"
+    }
+}
+
+android {
+    namespace = 'se.lublin.humla'
+
+    compileSdk = 36
+    ndkVersion = '27.2.12479018' // Must match ndkVersion in flake.nix
+    //buildToolsVersion '29.0.3'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    sourceSets.main.jniLibs.srcDir 'src/main/libs/'
+    sourceSets.main.jni.srcDirs = [] // Disable NDK build support until it supports multiple modules.
+
+    // Need to enable this when defaultConfig below contains some custom BuildConfig
+    buildFeatures {
+        buildConfig = true
+    }
+
+    defaultConfig {
+        testApplicationId "se.lublin.humla.test"
+        testInstrumentationRunner "android.test.InstrumentationTestRunner"
+        minSdkVersion 21
+        targetSdk 36
+
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
+        }
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    // Prepare RNNoise pre-trained model weights from official upstream model archive
+    task prepareRnnoiseModel {
+        def versionFile = file('src/main/jni/rnnoise/model_version')
+        def digestFile = file('model_sha256')
+        def outputDir = file('src/main/jni/rnnoise-build/generated')
+        def dataC = file('src/main/jni/rnnoise-build/generated/rnnoise_data.c')
+        def dataH = file('src/main/jni/rnnoise-build/generated/rnnoise_data.h')
+        def stampFile = file('src/main/jni/rnnoise-build/generated/.model_digest')
+        def modelBin = file('src/main/assets/rnnoise_model.bin')
+        def dumpScript = file('tools/dump_rnnoise_blob.py')
+        inputs.file(versionFile).optional()
+        inputs.file(digestFile)
+        inputs.file(dumpScript).optional()
+        outputs.file(dataC)
+        outputs.file(dataH)
+        outputs.file(stampFile)
+        outputs.file(modelBin)
+
+        doLast {
+            // M11: expected digest first so every path below (including the
+            // steady-state skip) is gated on it. Missing model_version falls
+            // back to the vendored digest; no second hardcoded hash to rot.
+            if (!digestFile.exists()) {
+                throw new GradleException("RNNoise model_sha256 is missing; refusing to download unverified weights.")
+            }
+            def expectedDigest = digestFile.text.trim().toLowerCase()
+            if (!expectedDigest.matches('[0-9a-f]{64}')) {
+                throw new GradleException("RNNoise model_sha256 is malformed (expected 64 lowercase hex chars); refusing to download.")
+            }
+            def modelHash = versionFile.exists() ? versionFile.text.trim() : expectedDigest
+            if (!modelHash.toLowerCase().equals(expectedDigest)) {
+                throw new GradleException("RNNoise model version/digest drift: model_version (${modelHash}) does not match model_sha256 (${expectedDigest}); update both.")
+            }
+            // Steady-state skip: valid only when the stamp proves the outputs
+            // were generated from this exact digest. Existence alone is not
+            // enough (a digest rotation must regenerate), and the tarball
+            // name rotates with the digest so its absence proves nothing.
+            if (dataC.exists() && dataH.exists() && modelBin.exists()
+                    && stampFile.exists() && stampFile.text.trim().toLowerCase().equals(expectedDigest)) {
+                return
+            }
+            def cacheDir = file("${project.buildDir}/model_cache")
+            cacheDir.mkdirs()
+            def tarGz = file("${cacheDir}/rnnoise_data-${modelHash}.tar.gz")
+            if (!tarGz.exists()) {
+                println "Downloading RNNoise model weights (${modelHash.substring(0, 7)})..."
+                def modelUrl = new URL("https://media.xiph.org/rnnoise/models/rnnoise_data-${modelHash}.tar.gz")
+                modelUrl.withInputStream { ins ->
+                    tarGz.withOutputStream { outs -> outs << ins }
+                }
+            }
+            // M11: verify the whole tarball against the vendored digest
+            // before unpacking. Fail closed on mismatch; no fallback URL.
+            def md = java.security.MessageDigest.getInstance("SHA-256")
+            tarGz.withInputStream { ins ->
+                byte[] buf = new byte[8192]
+                int n
+                while ((n = ins.read(buf)) != -1) {
+                    md.update(buf, 0, n)
+                }
+            }
+            def actualDigest = md.digest().encodeHex().toString().toLowerCase()
+            if (!actualDigest.equals(expectedDigest)) {
+                def deleted = tarGz.delete()
+                def cleanup = deleted ? "Deleted corrupt archive" : "Failed to delete corrupt archive at ${tarGz.absolutePath}; remove it manually"
+                throw new GradleException("RNNoise model digest mismatch for ${tarGz.name}: expected ${expectedDigest}, got ${actualDigest}. ${cleanup}; re-run the build to re-download.")
+            }
+            outputDir.mkdirs()
+            copy {
+                from tarTree(tarGz)
+                into outputDir
+                include 'src/rnnoise_data.c', 'src/rnnoise_data.h'
+                eachFile { fcd ->
+                    fcd.path = fcd.name
+                }
+                includeEmptyDirs = false
+            }
+
+            // Dump 8-bit quantized binary model asset
+            modelBin.parentFile.mkdirs()
+            exec {
+                commandLine 'python3', dumpScript.absolutePath, dataC.absolutePath, modelBin.absolutePath
+            }
+            stampFile.text = expectedDigest + '\n'
+        }
+    }
+    preBuild.dependsOn prepareRnnoiseModel
+
+    // Trigger NDK build on java compilation task with full core parallelism and incremental tracking.
+    task ndkBuild(type: Exec) {
+        dependsOn prepareRnnoiseModel
+        inputs.dir file('src/main/jni')
+        // Track the NDK version so an NDK upgrade invalidates stale .so files
+        // instead of reporting UP-TO-DATE.
+        inputs.property("ndkVersion", android.ndkVersion)
+        outputs.dir file('src/main/libs')
+        def ndkExe = "$project.android.ndkDirectory/ndk-build"
+        if (DefaultNativePlatform.getCurrentOperatingSystem().isWindows()) {
+          ndkExe += '.cmd'
+        }
+        def jobs = Runtime.runtime.availableProcessors()
+        commandLine ndkExe, "-j${jobs}", '-C', file('src/main/jni/').absolutePath
+    }
+
+    // NOTE: ndkBuild is wired to preBuild lazily in the startParameter gate
+    // at the bottom of this file, only when the requested tasks actually
+    // package native libs. See below.
+    // Host JVM tests exercise Java code only (native coverage comes from the
+    // host-built lib in build/test-native, see java.library.path below), so
+    // forcing a 3-ABI NDK build on every `./gradlew test...` run only slowed
+    // the dev loop. Packaging tasks still get native libs via preBuild.
+
+    lint {
+        abortOnError = true
+        disable 'InvalidPackage', 'MissingTranslation'
+        explainIssues = true
+        ignoreWarnings = false
+        quiet = false
+    }
+}
+
+task testNativeAudioEngine(type: Exec) {
+    description = 'Compiles and runs native C++ audio engine unit tests on the host'
+    group = 'verification'
+    workingDir "${project.rootDir}"
+    commandLine "${project.rootDir}/scripts/test_native_audio.sh"
+}
+
+tasks.matching { it.name == "check" }.configureEach {
+    dependsOn testNativeAudioEngine
+}
+
+// Only build native .so files when the requested tasks actually package them
+// (:app consumes this library's JNI libs at APK/AAR packaging time).
+// Unit-test-only runs such as `./gradlew testDebugUnitTest` or scripts/check.sh
+// step 3 must not pay for a 3-ABI ndk-build: host JVM tests exercise Java
+// only and load the host-built lib from build/test-native (see
+// java.library.path below). startParameter is used instead of
+// taskGraph.whenReady because dependency edges must exist before the
+// execution plan is calculated.
+if (gradle.startParameter.taskNames.any { it ==~ /.*(assemble|bundle|package|install|publish|build|connected).*/ }) {
+    tasks.named("preBuild").configure { dependsOn tasks.named("ndkBuild") }
+}
+// Note: `build` intentionally matches broadly (e.g. `build`,
+// `assembleFossDebugUnitTest`); over-triggering only costs an NDK build,
+// never correctness — the fail-closed guard below covers the other direction.
+
+// Fail closed when a packaging subtask is invoked directly (e.g.
+// `:libraries:humla:mergeDebugJniLibs`), bypassing the startParameter gate
+// above, which only sees top-level CLI spellings. Without ndkBuild in the
+// graph, Gradle would package stale or missing .so files, so refuse instead.
+gradle.taskGraph.whenReady { graph ->
+    def consumesNativeLibs = graph.allTasks.any { t ->
+        t.project == project && (
+            (t.name.startsWith("merge") && (t.name.contains("JniLib") || t.name.contains("NativeLibs"))) ||
+            (t.name.startsWith("copy") && t.name.contains("JniLib")) ||
+            t.name.startsWith("strip") ||
+            (t.name.startsWith("package") && !t.name.contains("Resources")) ||
+            (t.name.startsWith("bundle") && t.name.endsWith("Aar")) ||
+            t.name.startsWith("assemble")
+        )
+    }
+    def hasNdkBuild = graph.allTasks.any { t -> t.project == project && t.name == "ndkBuild" }
+    if (consumesNativeLibs && !hasNdkBuild) {
+        throw new GradleException('Refusing to package native libs without ndkBuild in the task graph (direct packaging-subtask invocation is unsupported; run a top-level task such as :app:assembleFossDebug instead).')
+    }
+}
+
+// NOTE: Test tasks deliberately do NOT depend on testNativeAudioEngine.
+// That edge re-ran the full native rebuild (~50s cold-cache, and never
+// up-to-date at the Gradle level since the Exec task declares no
+// inputs/outputs) on every unit-test invocation, duplicating scripts/check.sh
+// step 2b which already runs the same suite explicitly. `./gradlew check`
+// still covers native via the check dependency above.
+tasks.withType(Test).configureEach {
+    systemProperty "java.library.path", "${project.rootDir}/build/test-native"
+}
+
+tasks.named('clean', Delete) {
+    delete layout.projectDirectory.dir('src/main/libs')
+    delete layout.projectDirectory.dir('src/main/obj')
+}

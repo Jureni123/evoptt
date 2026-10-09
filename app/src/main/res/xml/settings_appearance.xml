@@ -1,10 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+<!--
+  ~ Copyright (C) 2014 Andrew Comminos
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <ListPreference
-        android:defaultValue="lightDark"
+        android:key="theme"
+        android:defaultValue="forceBlack"
         android:entries="@array/themeNames"
         android:entryValues="@array/themeValues"
-        android:key="theme"
-        android:summary="@string/themeSum"
-        android:title="@string/theme" />
+        app:useSimpleSummaryProvider="true"
+        android:title="@string/theme"
+        app:iconSpaceReserved="false" />
+
+    <ListPreference
+        app:key="language"
+        app:defaultValue="system"
+        app:title="@string/language"
+        app:useSimpleSummaryProvider="true"
+        app:iconSpaceReserved="false" />
+
+    <CheckBoxPreference
+        android:key="show_user_count"
+        android:defaultValue="false"
+        android:title="@string/pref_show_user_count"
+        android:summary="@string/pref_show_user_count_summary"
+        app:iconSpaceReserved="false" />
+
+    <CheckBoxPreference
+        android:key="overlay_shown"
+        android:defaultValue="false"
+        android:title="@string/pref_overlay"
+        android:summary="@string/pref_overlay_summary"
+        app:iconSpaceReserved="false" />
+
+    <ListPreference
+        android:key="overlay_placement"
+        android:defaultValue="floating"
+        android:title="@string/pref_overlay_placement"
+        android:entries="@array/overlayPlacementNames"
+        android:entryValues="@array/overlayPlacementValues"
+        android:dependency="overlay_shown"
+        app:useSimpleSummaryProvider="true"
+        app:iconSpaceReserved="false" />
+
+    <se.lublin.mumla.preference.SeekBarDialogPreference
+        android:key="pttButtonHeight"
+        android:title="@string/pttButtonHeight"
+        app:useSimpleSummaryProvider="true"
+        android:summary="@string/pttButtonHeightSum"
+        app:multiplier="10"
+        app:max="40"
+        app:min="4"
+        android:defaultValue="5"
+        android:text=" dp"
+        app:iconSpaceReserved="false" />
 </PreferenceScreen>

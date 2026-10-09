@@ -1,6 +1,6 @@
-[submodule "libraries/Jumble"]
-	path = libraries/Jumble
-	url = https://www.github.com/Morlunk/Jumble.git
-[submodule "libraries/NetCipher"]
-	path = libraries/NetCipher
-	url = https://github.com/Morlunk/OnionKit.git
+[submodule "libraries/humla/src/main/jni/opus"]
+	path = libraries/humla/src/main/jni/opus
+	url = https://github.com/xiph/opus
+[submodule "libraries/humla/src/main/jni/rnnoise"]
+	path = libraries/humla/src/main/jni/rnnoise
+	url = https://github.com/xiph/rnnoise.git
