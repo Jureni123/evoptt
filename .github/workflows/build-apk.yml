@@ -1,37 +1,26 @@
-name: Build Mumla-OLED APK
+name: Build Mumla-OLED APK (Manual)
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    tags:
+      - 'v*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
-      - name: Ambil Kode Commit
+      - name: Ambil Info Commit
         id: commit-info
         shell: bash
         run: |
           SHORT_HASH=$(git rev-parse --short=7 HEAD)
-          FULL_HASH=$(git rev-parse HEAD)
           echo "SHORT=$SHORT_HASH" >> $GITHUB_OUTPUT
-          echo "FULL=$FULL_HASH" >> $GITHUB_OUTPUT
-          echo "COMMIT_MSG=$(git log -1 --oneline)" >> $GITHUB_OUTPUT
-
-      - name: Verify & Update Submodules
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --force
-          ls -la libraries/humla/src/main/jni/rnnoise/
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -52,17 +41,21 @@ jobs:
       - name: Build FOSS Debug APK
         run: ./gradlew assembleFossDebug --stacktrace
 
-      - name: Salin APK dengan Nama Commit
+      - name: Rename APK with Commit Hash
         shell: bash
         run: |
           SHORT="${{ steps.commit-info.outputs.SHORT }}"
           SRC="app/build/outputs/apk/foss/debug/mumla-foss-debug.apk"
           DST="app/build/outputs/apk/foss/debug/mumla-oled-${SHORT}.apk"
-          cp "$SRC" "$DST"
-          echo "✅ APK: $DST"
-          echo "📝 Commit: ${{ steps.commit-info.outputs.COMMIT_MSG }}"
+          if [ -f "$SRC" ]; then
+            cp "$SRC" "$DST"
+            echo "✅ APK siap: $DST"
+          else
+            echo "❌ APK tidak ditemukan!"
+            exit 1
+          fi
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: mumla-oled-${{ steps.commit-info.outputs.SHORT }}
