@@ -55,7 +55,7 @@
         android:theme="@style/Theme.Mumla"
         android:localeConfig="@xml/local_config">
 
-        <!-- ✅ SPLASH SCREEN PERMISSION (LAUNCHER UTAMA) -->
+        <!-- ✅ 1. SPLASH SCREEN PERMISSION (LAUNCHER UTAMA) -->
         <activity
             android:name=".app.PermissionSplashActivity"
             android:theme="@style/Theme.Mumla"
@@ -65,6 +65,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- ✅ 2. LAYAR WELCOME BACK (BARU DITAMBAHKAN, AMAN & TERDAFTAR) -->
+        <activity
+            android:name=".app.WelcomeActivity"
+            android:theme="@style/Theme.Mumla"
+            android:exported="false" />
 
         <activity
             android:name=".preference.SettingsActivity"
@@ -76,13 +82,12 @@
             android:enabled="true"
             android:foregroundServiceType="microphone" />
 
-        <!-- ✅ MUMLA ACTIVITY (SUDAH BUKAN LAUNCHER LAGI) -->
+        <!-- ✅ 3. MUMLA ACTIVITY (SUDAH BUKAN LAUNCHER, TAPI BISA BUKA LINK MUMBLE) -->
         <activity
             android:name=".app.MumlaActivity"
             android:label="@string/app_name"
             android:launchMode="singleTop"
             android:exported="false">
-            <!-- Intent filter mumble scheme TETAP ADA agar bisa buka link server -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
