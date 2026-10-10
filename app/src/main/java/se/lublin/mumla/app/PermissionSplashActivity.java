@@ -93,7 +93,7 @@ public class PermissionSplashActivity extends AppCompatActivity {
     }
 
     private void goToMain() {
-        startActivity(new Intent(this, MumlaActivity.class));
+        startActivity(new Intent(this, WelcomeActivity.class));
         finish(); // Wajib finish agar splash tidak menumpuk di backstack
     }
 }
