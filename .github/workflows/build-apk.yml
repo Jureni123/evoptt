@@ -15,21 +15,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0  # Penting: Fetch semua history agar submodule resolve benar
+          fetch-depth: 0
+
+      - name: Ambil Kode Commit
+        id: commit-info
+        shell: bash
+        run: |
+          SHORT_HASH=$(git rev-parse --short=7 HEAD)
+          FULL_HASH=$(git rev-parse HEAD)
+          echo "SHORT=$SHORT_HASH" >> $GITHUB_OUTPUT
+          echo "FULL=$FULL_HASH" >> $GITHUB_OUTPUT
+          echo "COMMIT_MSG=$(git log -1 --oneline)" >> $GITHUB_OUTPUT
 
       - name: Verify & Update Submodules
         run: |
           git submodule sync --recursive
           git submodule update --init --recursive --force
-          # Verifikasi file kritis RNNoise ada
           ls -la libraries/humla/src/main/jni/rnnoise/
-          if [ ! -f "libraries/humla/src/main/jni/rnnoise/model_version" ]; then
-            echo "ERROR: model_version tidak ditemukan! Mencoba fix manual..."
-            # Kadang submodule perlu di-reset hard
-            cd libraries/humla/src/main/jni/rnnoise
-            git checkout HEAD -- .
-            cd ../../../../../..
-          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -50,8 +52,18 @@ jobs:
       - name: Build FOSS Debug APK
         run: ./gradlew assembleFossDebug --stacktrace
 
-      - name: Upload FOSS Debug APK Artifact
+      - name: Salin APK dengan Nama Commit
+        shell: bash
+        run: |
+          SHORT="${{ steps.commit-info.outputs.SHORT }}"
+          SRC="app/build/outputs/apk/foss/debug/mumla-foss-debug.apk"
+          DST="app/build/outputs/apk/foss/debug/mumla-oled-${SHORT}.apk"
+          cp "$SRC" "$DST"
+          echo "✅ APK: $DST"
+          echo "📝 Commit: ${{ steps.commit-info.outputs.COMMIT_MSG }}"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mumla-oled-foss-debug-apk
-          path: app/build/outputs/apk/foss/debug/mumla-foss-debug.apk
+          name: mumla-oled-${{ steps.commit-info.outputs.SHORT }}
+          path: app/build/outputs/apk/foss/debug/mumla-oled-*.apk
