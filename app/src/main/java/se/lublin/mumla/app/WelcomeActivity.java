@@ -15,7 +15,7 @@ import se.lublin.humla.util.HumlaCertificateGenerator;
 import se.lublin.mumla.db.DatabaseCertificate;
 import se.lublin.mumla.db.MumlaDatabase;
 import se.lublin.mumla.db.MumlaSQLiteDatabase;
-
+import se.lublin.mumla.R;
 public class WelcomeActivity extends AppCompatActivity {
 
     private EditText etNama;
