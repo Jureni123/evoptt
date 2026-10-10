@@ -34,7 +34,6 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.PowerManager;
 import android.text.InputType;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -132,9 +131,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     private boolean mAutoConnectAttempted = false;
     // ----------------------------------------------
 
-    /**
-     * If specified, the provided integer drawer fragment ID is shown when the activity is created.
-     */
     public static final String EXTRA_DRAWER_FRAGMENT = "drawer_fragment";
 
     private IMumlaService mService;
@@ -161,9 +157,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     private AlertDialog mFirstRunDialog;
     private boolean mFirstRunGenerateInFlight = false;
 
-    /**
-     * List of fragments to be notified about service state changes.
-     */
     private final List<HumlaServiceFragment> mServiceFragments = new ArrayList<HumlaServiceFragment>();
 
     private final ServiceConnection mConnection = new ServiceConnection() {
@@ -172,17 +165,14 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             mService = ((MumlaService.MumlaBinder) service).getService();
             mService.setSuppressNotifications(true);
             mService.registerObserver(mObserver);
-            mService.clearChatNotifications(); // Clear chat notifications on resume.
+            mService.clearChatNotifications();
             mDrawerAdapter.notifyDataSetChanged();
-            // Re-sync volume routing: onCreate ran pre-bind (MUSIC), and a
-            // rebound already-active SCO link emits no transition event.
             setVolumeControlStream(useVoiceCallVolume() ?
                     AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
             for (HumlaServiceFragment fragment : mServiceFragments)
                 fragment.setServiceBound(true);
 
-            // Re-show server list if we're showing a fragment that depends on the service.
             if (getSupportFragmentManager().findFragmentById(R.id.content_frame) instanceof HumlaServiceFragment &&
                     !mService.isConnected()) {
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
@@ -533,11 +523,19 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
         if (savedInstanceState == null) {
-            if (mSettings.isFirstRun()) {
-                showFirstRunGuide();
+            // --- MATIKAN DIALOG NATIVE FIRST-RUN JIKA KITA HANDLE SENDIRI ---
+            boolean isEmbeddedSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
+
+            if (!isEmbeddedSetupDone) {
+                mSettings.setFirstRun(false); // Cegah dialog "Welcome to Mumla" muncul
             } else {
+                if (mSettings.isFirstRun()) {
+                    mSettings.setFirstRun(false);
+                }
                 new StartupAction().execute(this);
             }
+            // ----------------------------------------------------------------
         }
     }
 
@@ -553,7 +551,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         Intent connectIntent = new Intent(this, MumlaService.class);
         bindService(connectIntent, mConnection, 0);
 
-        // --- AUTO-CONNECT LOGIC: CEK SETUP PERTAMA KALI SAAT ACTIVITY MUNCUL ---
+        // --- TAMPILKAN DIALOG NAMA DI ATAS LAYAR FAVORITES JIKA BELUM SETUP ---
         if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
             boolean isSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
                     .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
@@ -566,7 +564,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 }
             }
         }
-        // ------------------------------------------------------------------------
+        // ----------------------------------------------------------------------
     }
 
     @Override
@@ -1059,7 +1057,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         }
     }
 
-    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (DITAMBAHKAN) ---
+    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (DIPERBAIKI TOTAL) ---
     
     private void showEmbeddedServerCredentialsDialog(final Server embedded) {
         int pad = (int) (getResources().getDisplayMetrics().density * 16.0f);
@@ -1091,13 +1089,8 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                         username = mSettings.getDefaultUsername();
                     }
                     embedded.setUsername(username);
-                    mDatabase.updateServer(embedded);
                     
-                    PreferenceManager.getDefaultSharedPreferences(this)
-                            .edit()
-                            .putBoolean(PREF_EMBEDDED_SETUP_DONE, true)
-                            .apply();
-                    
+                    // 1. Generate Cert Dulu (Diam-diam di background)
                     generateEmbeddedCertificateSilently(embedded);
                 })
                 .show();
@@ -1126,8 +1119,24 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             @Override
             protected void onPostExecute(DatabaseCertificate result) {
                 if (result != null) {
+                    // 2. Set Cert ID
                     mSettings.setDefaultCertificateId(result.getId());
                 }
+                
+                // 3. BARU Simpan Server ke DB (setelah Cert siap & Nama ada)
+                if (embedded.getId() == -1L) {
+                    mDatabase.addServer(embedded);
+                } else {
+                    mDatabase.updateServer(embedded);
+                }
+                
+                // 4. Tandai setup selesai
+                PreferenceManager.getDefaultSharedPreferences(MumlaActivity.this)
+                        .edit()
+                        .putBoolean(PREF_EMBEDDED_SETUP_DONE, true)
+                        .apply();
+                
+                // 5. Terakhir: Connect! (Server dan Cert sudah 100% siap)
                 connectToServer(embedded);
             }
         }.execute();
@@ -1143,9 +1152,8 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             }
         }
         
-        Server server = new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
-        mDatabase.addServer(server);
-        return server;
+        // Buat objek saja di memori, JANGAN simpan ke DB dulu (mencegah data kosong)
+        return new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
     }
     // --------------------------------------------------------
 
