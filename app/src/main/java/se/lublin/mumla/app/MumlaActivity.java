@@ -465,22 +465,23 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         setVolumeControlStream(useVoiceCallVolume() ?
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
-        if (savedInstanceState == null) {
-            // ✅ LOGIKA ONCREATE YANG AMAN ✅
-            // Jika dipicu oleh WelcomeActivity (ada auto-connect), lewati panduan first-run
-            // agar user langsung masuk tanpa gangguan.
-            if (getIntent() != null && getIntent().hasExtra("AUTO_CONNECT_USERNAME"))“
-                new StartupAction().execute(this);
-            } else {
-                // Perilaku asli Mumla (jaga-jaga jika dibuka via link mumble:// atau cara lain)
-                if (mSettings.isFirstRun()) {
-                    showFirstRunGuide();
-                } else {
-                    new StartupAction().execute(this);
-                }
-            }
+if (savedInstanceState == null) {
+    // Cek apakah ada perintah auto-connect dari WelcomeActivity
+    boolean hasAutoConnect = (getIntent() != null && 
+                              getIntent().hasExtra("AUTO_CONNECT_USERNAME"));
+    
+    if (hasAutoConnect) {
+        // Langsung connect, lewati panduan first-run
+        new StartupAction().execute(this);
+    } else {
+        // Perilaku asli Mumla
+        if (mSettings.isFirstRun()) {
+            showFirstRunGuide();
+        } else {
+            new StartupAction().execute(this);
         }
     }
+}
 
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
