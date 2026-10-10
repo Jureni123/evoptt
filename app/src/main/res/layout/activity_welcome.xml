@@ -13,34 +13,50 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="48dp"
-        android:text="Welcome Back"
+        android:text="Selamat Datang"
         android:textColor="#FFFFFF"
         android:textSize="20sp"
         android:textStyle="italic" />
 
-    <!-- Nama Aplikasi -->
+    <!-- Nama Aplikasi (Spacing dihapus agar tidak berantakan) -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
+        android:layout_marginBottom="48dp"
         android:text="MUMLA OLED"
         android:textColor="#FFFFFF"
         android:textSize="24sp"
-        android:textStyle="bold"
-        android:letterSpacing="2.0" />
+        android:textStyle="bold" />
 
-    <!-- Area Kosong di Tengah (Biar Logo Nanti di sini) -->
+    <!-- Area Kosong di Tengah (Pendorong ke atas dan bawah) -->
     <View
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />
 
-    <!-- Tombol Gabung Besar -->
+    <!-- KOLOM ISI NAMA (Wajib ada agar user bisa ketik nama) -->
+    <EditText
+        android:id="@+id/et_nama_panggilan"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginBottom="24dp"
+        android:background="#1A1A1A"
+        android:hint="Ketik Nama Panggilan Kamu"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#888888"
+        android:textSize="16sp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:inputType="textPersonName"
+        android:gravity="center_vertical" />
+
+    <!-- Tombol SIMPAN (ID dan Teks sudah disesuaikan dengan kode Java kita) -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_gabung"
+        android:id="@+id/btn_simpan"
         android:layout_width="match_parent"
         android:layout_height="60dp"
-        android:text="GABUNG"
+        android:text="SIMPAN"
         android:textColor="#000000"
         android:textSize="18sp"
         android:textStyle="bold"
@@ -62,7 +78,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@Mumla OLED 2026"
+        android:text="© Mumla OLED 2026"
         android:textColor="#444444"
         android:textSize="12sp" />
 
