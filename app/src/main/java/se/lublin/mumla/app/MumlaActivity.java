@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 
 import android.Manifest;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -28,9 +29,12 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.media.AudioManager;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.text.InputType;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -40,7 +44,9 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,6 +70,7 @@ import org.jetbrains.annotations.NotNull;
 
 import android.text.TextUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.security.KeyStore;
@@ -73,14 +80,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import se.lublin.humla.HumlaService;
 import se.lublin.humla.IHumlaService;
 import se.lublin.humla.IHumlaSession;
 import se.lublin.humla.model.Server;
 import se.lublin.humla.net.HandshakeFailure;
+import se.lublin.humla.net.HumlaCertificateGenerator;
 import se.lublin.humla.net.TlsHostnameVerifier;
 import se.lublin.humla.protobuf.Mumble;
 import se.lublin.humla.util.HumlaException;
@@ -111,6 +122,19 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         DrawerAdapter.DrawerDataProvider, ServerEditFragment.ServerEditListener {
     private static final String TAG = MumlaActivity.class.getName();
 
+    // --- AUTO-CONNECT LOGIC: KONFIGURASI SERVER ---
+    // GANTI DENGAN ALAMAT SERVER DAN PORT ASLIMU DI SINI
+    private static final String EMBEDDED_SERVER_HOST = "mumble.samto.my.id"; 
+    private static final int EMBEDDED_SERVER_PORT = 22222;
+    private static final String EMBEDDED_SERVER_NAME = "Blambangan Online";
+    private static final String PREF_EMBEDDED_SETUP_DONE = "embedded_server_setup_done";
+    
+    private boolean mAutoConnectAttempted = false;
+    // ----------------------------------------------
+
+    /**
+     * If specified, the provided integer drawer fragment ID is shown when the activity is created.
+     */
     public static final String EXTRA_DRAWER_FRAGMENT = "drawer_fragment";
 
     private IMumlaService mService;
@@ -137,6 +161,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     private AlertDialog mFirstRunDialog;
     private boolean mFirstRunGenerateInFlight = false;
 
+    /**
+     * List of fragments to be notified about service state changes.
+     */
     private final List<HumlaServiceFragment> mServiceFragments = new ArrayList<HumlaServiceFragment>();
 
     private final ServiceConnection mConnection = new ServiceConnection() {
@@ -145,32 +172,43 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             mService = ((MumlaService.MumlaBinder) service).getService();
             mService.setSuppressNotifications(true);
             mService.registerObserver(mObserver);
-            mService.clearChatNotifications();
+            mService.clearChatNotifications(); // Clear chat notifications on resume.
             mDrawerAdapter.notifyDataSetChanged();
+            // Re-sync volume routing: onCreate ran pre-bind (MUSIC), and a
+            // rebound already-active SCO link emits no transition event.
             setVolumeControlStream(useVoiceCallVolume() ?
                     AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
             for (HumlaServiceFragment fragment : mServiceFragments)
                 fragment.setServiceBound(true);
 
+            // Re-show server list if we're showing a fragment that depends on the service.
             if (getSupportFragmentManager().findFragmentById(R.id.content_frame) instanceof HumlaServiceFragment &&
                     !mService.isConnected()) {
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
             }
-            updateConnectionState(getService());
 
-            // ✅ AUTO-CONNECT LOGIC (SUNTIKAN AMAN DI SINI) ✅
-            if (getIntent() != null && getIntent().hasExtra("AUTO_CONNECT_USERNAME")) {
-                String autoUsername = getIntent().getStringExtra("AUTO_CONNECT_USERNAME");
+            // --- AUTO-CONNECT LOGIC: CEK DAN CONNECT SETELAH SERVICE SIAP ---
+            if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
+                mAutoConnectAttempted = true;
                 
-                // ⚠️ GANTI "mumble.contoh.com" DAN 64738 DENGAN ALAMAT SERVER ASLIMU ⚠️
-                Server autoServer = new Server(-1, "Server RAPI", "mumble.contoh.com", 64738, autoUsername, "");
+                boolean isSetupDone = PreferenceManager.getDefaultSharedPreferences(MumlaActivity.this)
+                        .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
                 
-                connectToServer(autoServer);
-                
-                // Hapus extra agar tidak connect ulang jika layar diputar (rotasi)
-                getIntent().removeExtra("AUTO_CONNECT_USERNAME");
+                if (isSetupDone) {
+                    Server embedded = findOrCreateEmbeddedServer();
+                    if (embedded != null) {
+                        connectToServer(embedded);
+                    } else {
+                        loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
+                    }
+                } else {
+                    loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
+                }
             }
+            // ----------------------------------------------------------------
+
+            updateConnectionState(getService());
         }
 
         @Override
@@ -218,15 +256,39 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
 
         @Override
         public void onTLSHandshakeFailed(X509Certificate[] chain, HandshakeFailure failure, String verifiedHost) {
-            if (chain == null || chain.length == 0 || chain[0] == null) return;
-            if (getService() == null || getService().getTargetServer() == null) return;
-            
+            if (chain == null || chain.length == 0 || chain[0] == null) {
+                return;
+            }
+            if (getService() == null || getService().getTargetServer() == null) {
+                return;
+            }
             final Server lastServer = getService().getTargetServer();
+            
+            // --- AUTO-CONNECT LOGIC: AUTO-TRUST SERTIFIKAT SERVER KITA ---
+            if (lastServer != null && 
+                EMBEDDED_SERVER_HOST.equalsIgnoreCase(lastServer.getHost()) &&
+                lastServer.getPort() == EMBEDDED_SERVER_PORT) {
+                try {
+                    X509Certificate x509 = chain[0];
+                    String alias = lastServer.getHost();
+                    KeyStore trustStore = MumlaTrustStore.getTrustStore(MumlaActivity.this);
+                    trustStore.setCertificateEntry(alias, x509);
+                    MumlaTrustStore.saveTrustStore(MumlaActivity.this, trustStore);
+                    Log.d(TAG, "Auto-trusted certificate for embedded server: " + alias);
+                    connectToServer(lastServer);
+                    return; // Keluar, jangan tampilkan dialog
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to auto-trust embedded server cert", e);
+                }
+            }
+            // -------------------------------------------------------------
+
             final X509Certificate x509 = chain[0];
             String host = verifiedHost != null ? verifiedHost : lastServer.getHost();
             host = TlsHostnameVerifier.canonicalizeHost(host);
-            if (host == null) return;
-            
+            if (host == null) {
+                return;
+            }
             if (failure == HandshakeFailure.HOSTNAME_MISMATCH) {
                 showMismatchDialog(host, x509);
                 return;
@@ -315,6 +377,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             try {
                 String hexDigest1 = colonHex(MessageDigest.getInstance("SHA-1").digest(x509.getEncoded()));
                 String hexDigest2 = colonHex(MessageDigest.getInstance("SHA-256").digest(x509.getEncoded()));
+
                 return getString(R.string.certificate_info,
                         x509.getSubjectX500Principal().getName(),
                         x509.getNotBefore().toString(),
@@ -340,7 +403,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             String hex = bytesToHex(bytes);
             StringBuilder out = new StringBuilder(hex.length() + hex.length() / 2);
             for (int i = 0; i < hex.length(); i += 2) {
-                if (i > 0) out.append(':');
+                if (i > 0) {
+                    out.append(':');
+                }
                 out.append(hex, i, Math.min(i + 2, hex.length()));
             }
             return out.toString();
@@ -372,6 +437,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         mSettings = Settings.getInstance(this);
+
         super.onCreate(savedInstanceState);
         if (savedInstanceState != null) {
             mPermBluetoothAsked = savedInstanceState.getBoolean(STATE_BT_ASKED, false);
@@ -408,6 +474,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         });
 
         setStayAwake(mSettings.shouldStayAwake());
+
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         preferences.registerOnSharedPreferenceChangeListener(this);
 
@@ -465,23 +532,14 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         setVolumeControlStream(useVoiceCallVolume() ?
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
-if (savedInstanceState == null) {
-    // Cek apakah ada perintah auto-connect dari WelcomeActivity
-    boolean hasAutoConnect = (getIntent() != null && 
-                              getIntent().hasExtra("AUTO_CONNECT_USERNAME"));
-    
-    if (hasAutoConnect) {
-        // Langsung connect, lewati panduan first-run
-        new StartupAction().execute(this);
-    } else {
-        // Perilaku asli Mumla
-        if (mSettings.isFirstRun()) {
-            showFirstRunGuide();
-        } else {
-            new StartupAction().execute(this);
+        if (savedInstanceState == null) {
+            if (mSettings.isFirstRun()) {
+                showFirstRunGuide();
+            } else {
+                new StartupAction().execute(this);
+            }
         }
     }
-}
 
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
@@ -494,6 +552,21 @@ if (savedInstanceState == null) {
         super.onResume();
         Intent connectIntent = new Intent(this, MumlaService.class);
         bindService(connectIntent, mConnection, 0);
+
+        // --- AUTO-CONNECT LOGIC: CEK SETUP PERTAMA KALI SAAT ACTIVITY MUNCUL ---
+        if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
+            boolean isSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
+            
+            if (!isSetupDone) {
+                Server embedded = findOrCreateEmbeddedServer();
+                if (embedded != null) {
+                    showEmbeddedServerCredentialsDialog(embedded);
+                    mAutoConnectAttempted = true;
+                }
+            }
+        }
+        // ------------------------------------------------------------------------
     }
 
     @Override
@@ -571,12 +644,16 @@ if (savedInstanceState == null) {
     }
 
     private boolean useVoiceCallVolume() {
-        if (mSettings.isHandsetMode()) return true;
+        if (mSettings.isHandsetMode()) {
+            return true;
+        }
         return mService != null && mService.isBluetoothScoActive();
     }
 
     public void setBluetoothHeadset(boolean enabled) {
-        if (mSettings.isBluetoothHeadset() == enabled) return;
+        if (mSettings.isBluetoothHeadset() == enabled) {
+            return;
+        }
         mSettings.setBluetoothHeadset(enabled);
     }
 
@@ -620,8 +697,6 @@ if (savedInstanceState == null) {
         loadDrawerFragment((int) id);
     }
 
-    // Fungsi ini dikembalikan ke aslinya sebagai pengaman (fallback)
-    // Namun dalam alur baru kita, ini tidak akan dipanggil karena sudah di-handle onCreate
     private void showFirstRunGuide() {
         if (mSettings.isUsingCertificate()) {
             mSettings.setFirstRun(false);
@@ -983,6 +1058,96 @@ if (savedInstanceState == null) {
                 break;
         }
     }
+
+    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (DITAMBAHKAN) ---
+    
+    private void showEmbeddedServerCredentialsDialog(final Server embedded) {
+        int pad = (int) (getResources().getDisplayMetrics().density * 16.0f);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(pad, pad, pad, pad);
+        
+        TextView userLabel = new TextView(this);
+        userLabel.setText("Masukkan Nama Panggilan:");
+        layout.addView(userLabel);
+        
+        final EditText userEdit = new EditText(this);
+        userEdit.setHint(mSettings.getDefaultUsername());
+        userEdit.setSingleLine(true);
+        layout.addView(userEdit);
+        
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(layout);
+        
+        userEdit.post(() -> userEdit.requestFocus());
+        
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Selamat Datang di " + EMBEDDED_SERVER_NAME)
+                .setView(scrollView)
+                .setCancelable(false)
+                .setPositiveButton("SIMPAN & MASUK", (dialog, which) -> {
+                    String username = userEdit.getText().toString().trim();
+                    if (username.isEmpty()) {
+                        username = mSettings.getDefaultUsername();
+                    }
+                    embedded.setUsername(username);
+                    mDatabase.updateServer(embedded);
+                    
+                    PreferenceManager.getDefaultSharedPreferences(this)
+                            .edit()
+                            .putBoolean(PREF_EMBEDDED_SETUP_DONE, true)
+                            .apply();
+                    
+                    generateEmbeddedCertificateSilently(embedded);
+                })
+                .show();
+    }
+
+    private void generateEmbeddedCertificateSilently(final Server embedded) {
+        final Context appContext = getApplicationContext();
+        new AsyncTask<Void, Void, DatabaseCertificate>() {
+            @Override
+            protected DatabaseCertificate doInBackground(Void... params) {
+                try {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    HumlaCertificateGenerator.generateCertificate(baos);
+                    String fileName = "AutoCert_" + new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault()).format(new Date());
+                    
+                    MumlaSQLiteDatabase db = new MumlaSQLiteDatabase(appContext);
+                    DatabaseCertificate dc = db.addCertificate(fileName, baos.toByteArray());
+                    db.close();
+                    return dc;
+                } catch (Exception e) {
+                    Log.e(TAG, "silent certificate generation failed", e);
+                    return null;
+                }
+            }
+
+            @Override
+            protected void onPostExecute(DatabaseCertificate result) {
+                if (result != null) {
+                    mSettings.setDefaultCertificateId(result.getId());
+                }
+                connectToServer(embedded);
+            }
+        }.execute();
+    }
+
+    private Server findOrCreateEmbeddedServer() {
+        if (EMBEDDED_SERVER_HOST.isEmpty()) return null;
+        
+        for (Server existing : mDatabase.getServers()) {
+            if (EMBEDDED_SERVER_HOST.equalsIgnoreCase(existing.getHost()) && 
+                existing.getPort() == EMBEDDED_SERVER_PORT) {
+                return existing;
+            }
+        }
+        
+        Server server = new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
+        mDatabase.addServer(server);
+        return server;
+    }
+    // --------------------------------------------------------
 
     private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
 
