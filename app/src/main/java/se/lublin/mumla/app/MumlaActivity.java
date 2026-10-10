@@ -159,7 +159,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             }
             updateConnectionState(getService());
 
-            // ✅ AUTO-CONNECT LOGIC (SUNTikan DI SINI) ✅
+            // ✅ AUTO-CONNECT LOGIC (SUNTIKAN AMAN DI SINI) ✅
             if (getIntent() != null && getIntent().hasExtra("AUTO_CONNECT_USERNAME")) {
                 String autoUsername = getIntent().getStringExtra("AUTO_CONNECT_USERNAME");
                 
@@ -168,7 +168,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 
                 connectToServer(autoServer);
                 
-                // Hapus extra agar tidak connect ulang jika layar diputar
+                // Hapus extra agar tidak connect ulang jika layar diputar (rotasi)
                 getIntent().removeExtra("AUTO_CONNECT_USERNAME");
             }
         }
@@ -466,9 +466,19 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
         if (savedInstanceState == null) {
-            // ✅ BYPASS FIRST RUN GUIDE YANG MEMBINGUNGKAN ✅
-            // Kita langsung jalankan StartupAction, sertifikat akan diurus oleh WelcomeActivity
-            new StartupAction().execute(this);
+            // ✅ LOGIKA ONCREATE YANG AMAN ✅
+            // Jika dipicu oleh WelcomeActivity (ada auto-connect), lewati panduan first-run
+            // agar user langsung masuk tanpa gangguan.
+            if (getIntent() != null && getIntent().hasExtra("AUTO_CONNECT_USERNAME"))“
+                new StartupAction().execute(this);
+            } else {
+                // Perilaku asli Mumla (jaga-jaga jika dibuka via link mumble:// atau cara lain)
+                if (mSettings.isFirstRun()) {
+                    showFirstRunGuide();
+                } else {
+                    new StartupAction().execute(this);
+                }
+            }
         }
     }
 
@@ -609,8 +619,43 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         loadDrawerFragment((int) id);
     }
 
+    // Fungsi ini dikembalikan ke aslinya sebagai pengaman (fallback)
+    // Namun dalam alur baru kita, ini tidak akan dipanggil karena sudah di-handle onCreate
     private void showFirstRunGuide() {
-        // Kita tidak akan memanggil ini lagi karena sudah di-bypass di onCreate
+        if (mSettings.isUsingCertificate()) {
+            mSettings.setFirstRun(false);
+            new StartupAction().execute(this);
+            return;
+        }
+        String msg = getString(R.string.first_run_generate_certificate);
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.first_run_generate_certificate_title)
+                .setMessage(msg)
+                .setPositiveButton(R.string.generate, (DialogInterface dialog, int which) -> {
+                    mFirstRunGenerateInFlight = true;
+                    MumlaCertificateGenerateTask generateTask = new MumlaCertificateGenerateTask(MumlaActivity.this) {
+                        @Override
+                        protected void onPostExecute(DatabaseCertificate result) {
+                            super.onPostExecute(result);
+                            mFirstRunGenerateInFlight = false;
+                            if (result != null) mSettings.setDefaultCertificateId(result.getId());
+                            if (!isFinishing() && !isDestroyed()) {
+                                new StartupAction().execute(MumlaActivity.this);
+                            }
+                        }
+                    };
+                    generateTask.execute();
+                    mSettings.setFirstRun(false);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .setOnDismissListener(dialogInterface -> {
+                    if (mFirstRunGenerateInFlight) return;
+                    mSettings.setFirstRun(false);
+                    if (isFinishing() || isDestroyed() || isChangingConfigurations()) return;
+                    new StartupAction().execute(MumlaActivity.this);
+                });
+        mFirstRunDialog = builder.create();
+        mFirstRunDialog.show();
     }
 
     private void loadDrawerFragment(int fragmentId) {
