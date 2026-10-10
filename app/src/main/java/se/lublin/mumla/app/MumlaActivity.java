@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 
 import android.Manifest;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -28,9 +29,12 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.media.AudioManager;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.text.InputType;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -40,7 +44,9 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,6 +70,7 @@ import org.jetbrains.annotations.NotNull;
 
 import android.text.TextUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.security.KeyStore;
@@ -73,14 +80,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import se.lublin.humla.HumlaService;
 import se.lublin.humla.IHumlaService;
 import se.lublin.humla.IHumlaSession;
 import se.lublin.humla.model.Server;
 import se.lublin.humla.net.HandshakeFailure;
+import se.lublin.humla.net.HumlaCertificateGenerator;
 import se.lublin.humla.net.TlsHostnameVerifier;
 import se.lublin.humla.protobuf.Mumble;
 import se.lublin.humla.util.HumlaException;
@@ -111,6 +122,16 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         DrawerAdapter.DrawerDataProvider, ServerEditFragment.ServerEditListener {
     private static final String TAG = MumlaActivity.class.getName();
 
+    // --- AUTO-CONNECT LOGIC: KONFIGURASI SERVER ---
+    // GANTI DENGAN ALAMAT SERVER DAN PORT ASLIMU DI SINI
+    private static final String EMBEDDED_SERVER_HOST = "mumble.samto.my.id"; 
+    private static final int EMBEDDED_SERVER_PORT = 22222;
+    private static final String EMBEDDED_SERVER_NAME = "Blambangan Online";
+    private static final String PREF_EMBEDDED_SETUP_DONE = "embedded_server_setup_done";
+    
+    private boolean mAutoConnectAttempted = false;
+    // ----------------------------------------------
+
     /**
      * If specified, the provided integer drawer fragment ID is shown when the activity is created.
      */
@@ -137,11 +158,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     private AlertDialog mConnectingDialog;
     private AlertDialog mErrorDialog;
     private AlertDialog mCertDialog;
-    // Dedicated host for the first-run certificate guide. It carries an
-    // OnDismissListener with first-run side effects that must never fire for
-    // the TLS dialogs hosted by mCertDialog above (round-2 D2).
     private AlertDialog mFirstRunDialog;
-    // True while the first-run certificate generation task owns StartupAction.
     private boolean mFirstRunGenerateInFlight = false;
 
     /**
@@ -170,6 +187,27 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     !mService.isConnected()) {
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
             }
+
+            // --- AUTO-CONNECT LOGIC: CEK DAN CONNECT SETELAH SERVICE SIAP ---
+            if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
+                mAutoConnectAttempted = true;
+                
+                boolean isSetupDone = PreferenceManager.getDefaultSharedPreferences(MumlaActivity.this)
+                        .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
+                
+                if (isSetupDone) {
+                    Server embedded = findOrCreateEmbeddedServer();
+                    if (embedded != null) {
+                        connectToServer(embedded);
+                    } else {
+                        loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
+                    }
+                } else {
+                    loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
+                }
+            }
+            // ----------------------------------------------------------------
+
             updateConnectionState(getService());
         }
 
@@ -187,17 +225,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             } else {
                 loadDrawerFragment(DrawerAdapter.ITEM_SERVER);
             }
-            // Swap screens synchronously: commit() alone leaves the server list visible
-            // and tappable until the next traversal, while updateConnectionState() below
-            // dismisses the modal connecting dialog first. commit() is the state-loss
-            // check, and this observer is unregistered in onPause before
-            // onSaveInstanceState on the same Looper, so this adds no new exposure.
-            // Drains the whole pending queue in FIFO order, which is benign.
             getSupportFragmentManager().executePendingTransactions();
-
             mDrawerAdapter.notifyDataSetChanged();
             supportInvalidateOptionsMenu();
-
             updateConnectionState(getService());
         }
 
@@ -208,25 +238,17 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
 
         @Override
         public void onDisconnected(HumlaException e) {
-            // Re-show server list if we're showing a fragment that depends on the service.
             if (getSupportFragmentManager().findFragmentById(R.id.content_frame) instanceof HumlaServiceFragment) {
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
-                // Same synchronous swap as onConnected: the dialog below shows
-                // immediately, so don't leave stale channel UI up for a traversal.
                 getSupportFragmentManager().executePendingTransactions();
             }
             mDrawerAdapter.notifyDataSetChanged();
             supportInvalidateOptionsMenu();
-
             updateConnectionState(getService());
         }
 
         @Override
         public void onBluetoothScoChanged(boolean active) {
-            // Link transitions refresh what the preference snapshot cannot:
-            // volume keys follow the live route. The overflow checkmark
-            // mirrors the requested toggle, so this invalidate only gates
-            // menu visibility on connect/disconnect.
             setVolumeControlStream(useVoiceCallVolume() ?
                     AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
             supportInvalidateOptionsMenu();
@@ -241,9 +263,27 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 return;
             }
             final Server lastServer = getService().getTargetServer();
+            
+            // --- AUTO-CONNECT LOGIC: AUTO-TRUST SERTIFIKAT SERVER KITA ---
+            if (lastServer != null && 
+                EMBEDDED_SERVER_HOST.equalsIgnoreCase(lastServer.getHost()) &&
+                lastServer.getPort() == EMBEDDED_SERVER_PORT) {
+                try {
+                    X509Certificate x509 = chain[0];
+                    String alias = lastServer.getHost();
+                    KeyStore trustStore = MumlaTrustStore.getTrustStore(MumlaActivity.this);
+                    trustStore.setCertificateEntry(alias, x509);
+                    MumlaTrustStore.saveTrustStore(MumlaActivity.this, trustStore);
+                    Log.d(TAG, "Auto-trusted certificate for embedded server: " + alias);
+                    connectToServer(lastServer);
+                    return; // Keluar, jangan tampilkan dialog
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to auto-trust embedded server cert", e);
+                }
+            }
+            // -------------------------------------------------------------
+
             final X509Certificate x509 = chain[0];
-            // Pins and verification both key on the post-SRV host; the dialog
-            // shows that same host so mismatch copy names what was checked.
             String host = verifiedHost != null ? verifiedHost : lastServer.getHost();
             host = TlsHostnameVerifier.canonicalizeHost(host);
             if (host == null) {
@@ -261,7 +301,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             showFirstTrustDialog(lastServer, host, x509);
         }
 
-        /** CA-valid cert for the wrong host: no Allow, no pinning — disconnect only. */
         private void showMismatchDialog(String host, X509Certificate x509) {
             List<String> claimed = TlsHostnameVerifier.claimedNames(x509);
             String names = claimed.isEmpty() ? getString(R.string.unknown) : TextUtils.join(", ", claimed);
@@ -277,7 +316,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     .show();
         }
 
-        /** Self-signed/unknown issuer, no pin yet: clarified Allow flow. */
         private void showFirstTrustDialog(Server server, String host, X509Certificate x509) {
             View layout = getLayoutInflater().inflate(R.layout.certificate_info, null);
             TextView textView = layout.findViewById(R.id.certificate_info_text);
@@ -292,7 +330,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     .show();
         }
 
-        /** Pinned host presenting a different key: explicit Replace with old-vs-new fingerprints. */
         private void showChangedDialog(Server server, String host, X509Certificate presented, X509Certificate pinned) {
             View layout = getLayoutInflater().inflate(R.layout.certificate_info, null);
             TextView textView = layout.findViewById(R.id.certificate_info_text);
@@ -403,13 +440,10 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
 
         super.onCreate(savedInstanceState);
         if (savedInstanceState != null) {
-            mPermBluetoothAsked =
-                    savedInstanceState.getBoolean(STATE_BT_ASKED, false);
-            mPermPostNotificationsAsked =
-                    savedInstanceState.getBoolean(STATE_POST_NOTIF_ASKED, false);
+            mPermBluetoothAsked = savedInstanceState.getBoolean(STATE_BT_ASKED, false);
+            mPermPostNotificationsAsked = savedInstanceState.getBoolean(STATE_POST_NOTIF_ASKED, false);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                mServerPendingPerm =
-                        savedInstanceState.getParcelable(STATE_SERVER_PENDING, Server.class);
+                mServerPendingPerm = savedInstanceState.getParcelable(STATE_SERVER_PENDING, Server.class);
             } else {
                 mServerPendingPerm = savedInstanceState.getParcelable(STATE_SERVER_PENDING);
             }
@@ -444,7 +478,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         preferences.registerOnSharedPreferenceChangeListener(this);
 
-        mDatabase = new MumlaSQLiteDatabase(this); // TODO add support for cloud storage
+        mDatabase = new MumlaSQLiteDatabase(this);
         mDatabase.open();
 
         mDrawerLayout = findViewById(R.id.drawer_layout);
@@ -465,7 +499,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             @Override
             public void onDrawerStateChanged(int newState) {
                 super.onDrawerStateChanged(newState);
-                // Prevent push to talk from getting stuck on when the drawer is opened.
                 if (getService() != null && getService().isConnected()) {
                     IHumlaSession session = getService().HumlaSession();
                     if (session.isTalking() && !mSettings.isPushToTalkToggle()) {
@@ -486,15 +519,12 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
 
         if (savedInstanceState == null) {
             if (getIntent() != null && getIntent().hasExtra(EXTRA_DRAWER_FRAGMENT)) {
-                loadDrawerFragment(getIntent().getIntExtra(EXTRA_DRAWER_FRAGMENT,
-                        DrawerAdapter.ITEM_FAVOURITES));
+                loadDrawerFragment(getIntent().getIntExtra(EXTRA_DRAWER_FRAGMENT, DrawerAdapter.ITEM_FAVOURITES));
             } else {
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
             }
         }
 
-        // If we're given a Mumble URL to show, open up a server edit fragment. Only on a
-        // fresh launch: after recreation the fragment manager restores the dialog itself.
         if (savedInstanceState == null) {
             handleViewIntent(getIntent());
         }
@@ -503,8 +533,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
         if (savedInstanceState == null) {
-            // Got no instance bundle: this is run only on real app startup -- not when Android
-            // recreates the activity on configuration change, like screen rotation.
             if (mSettings.isFirstRun()) {
                 showFirstRunGuide();
             } else {
@@ -524,15 +552,28 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         super.onResume();
         Intent connectIntent = new Intent(this, MumlaService.class);
         bindService(connectIntent, mConnection, 0);
+
+        // --- AUTO-CONNECT LOGIC: CEK SETUP PERTAMA KALI SAAT ACTIVITY MUNCUL ---
+        if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
+            boolean isSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
+            
+            if (!isSetupDone) {
+                Server embedded = findOrCreateEmbeddedServer();
+                if (embedded != null) {
+                    showEmbeddedServerCredentialsDialog(embedded);
+                    mAutoConnectAttempted = true;
+                }
+            }
+        }
+        // ------------------------------------------------------------------------
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (mErrorDialog != null)
-            mErrorDialog.dismiss();
-        if (mConnectingDialog != null)
-            mConnectingDialog.dismiss();
+        if (mErrorDialog != null) mErrorDialog.dismiss();
+        if (mConnectingDialog != null) mConnectingDialog.dismiss();
         dismissCertDialog();
         dismissFirstRunDialog();
 
@@ -547,23 +588,16 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         unbindService(mConnection);
     }
 
-    /**
-     * If the intent is a Mumble URL view request, opens a server edit dialog prompting the
-     * user to connect.
-     */
     private void handleViewIntent(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) {
             return;
         }
         try {
             Server server = MumbleURLParser.parseURL(intent.getDataString());
-
-            // Flag a password embedded in the link so the dialog can warn (not block).
             String urlPassword = server.getPassword();
             boolean hasUrlPassword = urlPassword != null && !urlPassword.isEmpty();
             DialogFragment fragment = ServerEditFragment.createServerEditDialog(
-                    server, ServerEditFragment.Action.CONNECT_ACTION, true,
-                    hasUrlPassword);
+                    server, ServerEditFragment.Action.CONNECT_ACTION, true, hasUrlPassword);
             fragment.show(getSupportFragmentManager(), "url_edit");
         } catch (MalformedURLException e) {
             Toast.makeText(this, getString(R.string.mumble_url_parse_failed), Toast.LENGTH_LONG).show();
@@ -574,7 +608,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // singleTop: links opened while the activity is running arrive here.
         setIntent(intent);
         handleViewIntent(intent);
     }
@@ -591,21 +624,18 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem disconnectButton = menu.findItem(R.id.action_disconnect);
         disconnectButton.setVisible(mService != null && mService.isConnected());
-
         return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.mumla, menu);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(@NotNull MenuItem item) {
-        if (mDrawerToggle.onOptionsItemSelected(item))
-            return true;
+        if (mDrawerToggle.onOptionsItemSelected(item)) return true;
         if (item.getItemId() == R.id.action_disconnect) {
             getService().disconnect();
             return true;
@@ -613,12 +643,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         return false;
     }
 
-    /**
-     * Volume keys follow the voice-call stream when the handset path is in
-     * use or a SCO link is confirmed up. Confirmed state (not the raw
-     * toggle) keeps keys coherent with the actual route, including after a
-     * failed bring-up that falls back to phone audio.
-     */
     private boolean useVoiceCallVolume() {
         if (mSettings.isHandsetMode()) {
             return true;
@@ -626,13 +650,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         return mService != null && mService.isBluetoothScoActive();
     }
 
-    /**
-     * Asserts Bluetooth headset state. Absolute, not a toggle; writes the
-     * requested preference unconditionally so the overflow item mirrors
-     * Settings > Audio. Missing-grant handling lives downstream: the
-     * service reverts with a hint. No-op writes return early and never
-     * dispatch preference listeners.
-     */
     public void setBluetoothHeadset(boolean enabled) {
         if (mSettings.isBluetoothHeadset() == enabled) {
             return;
@@ -681,7 +698,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     }
 
     private void showFirstRunGuide() {
-        // Prompt the user to generate a certificate.
         if (mSettings.isUsingCertificate()) {
             mSettings.setFirstRun(false);
             new StartupAction().execute(this);
@@ -699,8 +715,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                             super.onPostExecute(result);
                             mFirstRunGenerateInFlight = false;
                             if (result != null) mSettings.setDefaultCertificateId(result.getId());
-                            // The news dialog shows from this activity's window token; skip
-                            // it if the activity died while generation was in flight.
                             if (!isFinishing() && !isDestroyed()) {
                                 new StartupAction().execute(MumlaActivity.this);
                             }
@@ -709,18 +723,10 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     generateTask.execute();
                     mSettings.setFirstRun(false);
                 })
-                // The dismiss listener below owns the flag-clear/StartupAction path,
-                // so every dismissal (button, back-press, outside-tap, onPause)
-                // converges there instead of each path duplicating it (ODD-06).
-                // A null button listener keeps the default auto-dismiss behavior.
                 .setNegativeButton(android.R.string.cancel, null)
                 .setOnDismissListener(dialogInterface -> {
-                    // The generate path owns StartupAction via onPostExecute.
                     if (mFirstRunGenerateInFlight) return;
                     mSettings.setFirstRun(false);
-                    // Never run startup UI off a pausing/dying instance: onPause
-                    // dismisses this dialog on rotation, backgrounding, and finish
-                    // (round-2 D1). The flag is still cleared so no re-prompt loop.
                     if (isFinishing() || isDestroyed() || isChangingConfigurations()) return;
                     new StartupAction().execute(MumlaActivity.this);
                 });
@@ -728,9 +734,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         mFirstRunDialog.show();
     }
 
-    /**
-     * Loads a fragment from the drawer.
-     */
     private void loadDrawerFragment(int fragmentId) {
         Class<? extends Fragment> fragmentClass = null;
         Bundle args = new Bundle();
@@ -783,46 +786,25 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     }
 
     public void connectToServerWithPerm() {
-        if (ContextCompat.checkSelfPermission(MumlaActivity.this,
-                Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(MumlaActivity.this,
-                    new String[]{Manifest.permission.RECORD_AUDIO},
-                    PERMISSIONS_REQUEST_RECORD_AUDIO);
+        if (ContextCompat.checkSelfPermission(MumlaActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(MumlaActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, PERMISSIONS_REQUEST_RECORD_AUDIO);
             return;
         }
 
-        if (mSettings.isBluetoothHeadset()
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && ContextCompat.checkSelfPermission(MumlaActivity.this,
-                        Manifest.permission.BLUETOOTH_CONNECT)
-                        != PackageManager.PERMISSION_GRANTED) {
+        if (mSettings.isBluetoothHeadset() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ContextCompat.checkSelfPermission(MumlaActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             if (!mPermBluetoothAsked) {
-                // First use: ask. shouldShowRequestPermissionRationale is
-                // false both before the first ask and after permanent denial,
-                // so the asked-flag (not rationale) tells them apart.
                 mPermBluetoothAsked = true;
-                ActivityCompat.requestPermissions(MumlaActivity.this,
-                        new String[]{Manifest.permission.BLUETOOTH_CONNECT},
-                        PERMISSIONS_REQUEST_BLUETOOTH_CONNECT);
+                ActivityCompat.requestPermissions(MumlaActivity.this, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, PERMISSIONS_REQUEST_BLUETOOTH_CONNECT);
                 return;
             }
-            // Asked before and still denied: revert with an explanation and
-            // continue on phone audio instead of dead-ending every connect.
             mSettings.setBluetoothHeadset(false);
-            Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_bluetooth),
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_bluetooth), Toast.LENGTH_LONG).show();
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !mPermPostNotificationsAsked) {
-            // Mark asked before requesting: a cancelled dialog must not loop.
             mPermPostNotificationsAsked = true;
-            if (ContextCompat.checkSelfPermission(MumlaActivity.this,
-                    Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(MumlaActivity.this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        PERMISSIONS_REQUEST_POST_NOTIFICATIONS);
+            if (ContextCompat.checkSelfPermission(MumlaActivity.this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MumlaActivity.this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, PERMISSIONS_REQUEST_POST_NOTIFICATIONS);
                 return;
             }
         }
@@ -835,11 +817,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         Server server = mServerPendingPerm;
         mServerPendingPerm = null;
 
-        // Already connected: tapping the current server is a no-op, tapping
-        // another server offers a switch via the reconnect dialog.
         if (mService != null && mService.isConnected()) {
-            // Tapping the server we're already on is a no-op: reconnecting to it
-            // would pointlessly tear down the live session.
             if (isSameServer(mService.getTargetServer(), server)) {
                 Toast.makeText(this, R.string.already_connected, Toast.LENGTH_SHORT).show();
                 return;
@@ -847,7 +825,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             new MaterialAlertDialogBuilder(this)
                     .setMessage(R.string.reconnect_dialog_message)
                     .setPositiveButton(R.string.connect, (dialog, which) -> {
-                        // Register an observer to reconnect to the new server once disconnected.
                         mService.registerObserver(new HumlaObserver() {
                             @Override
                             public void onDisconnected(HumlaException e) {
@@ -861,8 +838,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     .show();
             return;
         }
-        // Ignore rapid taps while a connection attempt is already in progress;
-        // each tap would otherwise spawn a parallel connection attempt.
         if (mService != null && mService.getConnectionState() == HumlaService.ConnectionState.CONNECTING) {
             if (isSameServer(mService.getTargetServer(), server)) {
                 Toast.makeText(this, R.string.mumlaConnecting, Toast.LENGTH_SHORT).show();
@@ -877,39 +852,26 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     }
 
     static boolean isSameServer(Server a, Server b) {
-        if (a == null || b == null) {
-            return a == b;
-        }
-        if (a.isSaved() && b.isSaved()) {
-            return a.getId() == b.getId();
-        }
-        // Fall back to the chat-log identity convention (normalized endpoint + username).
+        if (a == null || b == null) return a == b;
+        if (a.isSaved() && b.isSaved()) return a.getId() == b.getId();
         return MumlaService.getServerKey(a).equals(MumlaService.getServerKey(b));
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (grantResults.length == 0) {
-            // Dismissed (not denied) system dialog: resume or explain instead
-            // of stranding the pending action.
             if (requestCode == PERMISSIONS_REQUEST_BLUETOOTH_CONNECT) {
-                // Connect-flow request only; menu taps persist directly.
                 if (mServerPendingPerm != null) {
                     mSettings.setBluetoothHeadset(false);
-                    Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_bluetooth),
-                            Toast.LENGTH_LONG).show();
+                    Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_bluetooth), Toast.LENGTH_LONG).show();
                     connectToServerWithPerm();
                 }
             } else if (requestCode == PERMISSIONS_REQUEST_POST_NOTIFICATIONS) {
-                // Cancelled dialog: proceed without notifications instead of
-                // stranding the pending connect.
                 connectToServerWithPerm();
             } else if (requestCode == PERMISSIONS_REQUEST_RECORD_AUDIO) {
-                Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_microphone),
-                        Toast.LENGTH_LONG).show();
+                Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_microphone), Toast.LENGTH_LONG).show();
             }
             return;
         }
@@ -919,30 +881,23 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     connectToServerWithPerm();
                 } else {
-                    Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_microphone),
-                            Toast.LENGTH_LONG).show();
+                    Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_microphone), Toast.LENGTH_LONG).show();
                 }
                 break;
             case PERMISSIONS_REQUEST_BLUETOOTH_CONNECT:
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     connectToServerWithPerm();
                 } else {
-                    // Denied after asking: revert so future connects proceed,
-                    // then resume this connect on phone audio.
                     mSettings.setBluetoothHeadset(false);
-                    Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_bluetooth),
-                            Toast.LENGTH_LONG).show();
+                    Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_bluetooth), Toast.LENGTH_LONG).show();
                     connectToServerWithPerm();
                 }
                 break;
             case PERMISSIONS_REQUEST_POST_NOTIFICATIONS:
                 mPermPostNotificationsAsked = true;
                 if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
-                    // This is inspired by https://stackoverflow.com/a/34612503
-                    if (ActivityCompat.shouldShowRequestPermissionRationale(MumlaActivity.this,
-                            Manifest.permission.POST_NOTIFICATIONS)) {
-                        Toast.makeText(MumlaActivity.this,
-                                getString(R.string.grant_perm_notifications), Toast.LENGTH_LONG).show();
+                    if (ActivityCompat.shouldShowRequestPermissionRationale(MumlaActivity.this, Manifest.permission.POST_NOTIFICATIONS)) {
+                        Toast.makeText(MumlaActivity.this, getString(R.string.grant_perm_notifications), Toast.LENGTH_LONG).show();
                     }
                 }
                 connectToServerWithPerm();
@@ -958,67 +913,43 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         }
     }
 
-    /**
-     * Updates the activity to represent the connection state of the given service.
-     * Will show reconnecting dialog if reconnecting, dismiss otherwise, etc.
-     * Basically, this service will do catch-up if the activity wasn't bound to receive
-     * connection state updates.
-     *
-     * @param service A bound IHumlaService.
-     */
     private void updateConnectionState(IHumlaService service) {
-        if (mConnectingDialog != null) {
-            mConnectingDialog.dismiss();
-        }
-        if (mErrorDialog != null)
-            mErrorDialog.dismiss();
+        if (mConnectingDialog != null) mConnectingDialog.dismiss();
+        if (mErrorDialog != null) mErrorDialog.dismiss();
 
-        if (service == null) {
-            return;
-        }
+        if (service == null) return;
 
         switch (service.getConnectionState()) {
             case CONNECTING:
                 Server server = service.getTargetServer();
                 String host = (server != null && server.getHost() != null) ? server.getHost() : "";
-                // SRV lookup is done later, so we no longer show the port in the connection
-                // progress dialog (and only the configured hostname)
                 mConnectingDialog = new MaterialAlertDialogBuilder(this)
                         .setTitle(getString(R.string.connecting_to_server, host))
                         .setView(R.layout.dialog_progress)
                         .setCancelable(true)
                         .setOnCancelListener(dialog -> {
                             service.disconnect();
-                            Toast.makeText(MumlaActivity.this, R.string.cancelled,
-                                    Toast.LENGTH_SHORT).show();
+                            Toast.makeText(MumlaActivity.this, R.string.cancelled, Toast.LENGTH_SHORT).show();
                         })
                         .create();
                 mConnectingDialog.show();
                 break;
             case CONNECTION_LOST:
-                // Only bother the user if the error hasn't already been shown.
                 if (getService() != null && !getService().isErrorShown()) {
-                    // TODO? bail out if service gone -- it is happening!
-                    if (getService() == null) {
-                        break;
-                    }
+                    if (getService() == null) break;
                     MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(MumlaActivity.this);
                     builder.setTitle(getString(R.string.connectionRefused));
                     HumlaException error = getService().getConnectionError();
                     if (error != null && service.isReconnecting()) {
-                        builder.setMessage(error.getMessage() + "\n\n"
-                                + getString(R.string.attempting_reconnect,
-                                error.getCause() != null ? error.getCause().getMessage() : "unknown"));
+                        builder.setMessage(error.getMessage() + "\n\n" + getString(R.string.attempting_reconnect, error.getCause() != null ? error.getCause().getMessage() : "unknown"));
                         builder.setPositiveButton(R.string.cancel_reconnect, (dialog, which) -> {
                             if (getService() != null) {
                                 getService().cancelReconnect();
                                 getService().markErrorShown();
                             }
                         });
-                    } else if (error != null &&
-                            error.getReason() == HumlaException.HumlaDisconnectReason.REJECT &&
-                            (error.getReject().getType() == Mumble.Reject.RejectType.WrongUserPW ||
-                                    error.getReject().getType() == Mumble.Reject.RejectType.WrongServerPW)) {
+                    } else if (error != null && error.getReason() == HumlaException.HumlaDisconnectReason.REJECT &&
+                            (error.getReject().getType() == Mumble.Reject.RejectType.WrongUserPW || error.getReject().getType() == Mumble.Reject.RejectType.WrongServerPW)) {
                         final EditText passwordField = new EditText(this);
                         passwordField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
                         passwordField.setHint(R.string.password);
@@ -1027,17 +958,11 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                         builder.setView(passwordField);
                         builder.setPositiveButton(R.string.reconnect, (dialog, which) -> {
                             Server server1 = getService().getTargetServer();
-                            if (server1 == null) {
-                                return;
-                            }
+                            if (server1 == null) return;
                             String password = passwordField.getText().toString();
                             server1.setPassword(password);
-                            if (server1.isSaved()) {
-                                mDatabase.updateServer(server1);
-                            }
+                            if (server1.isSaved()) mDatabase.updateServer(server1);
                             if (mService != null && mService.getConnectionState() == HumlaService.ConnectionState.CONNECTING) {
-                                // Serialize the retry behind the in-flight attempt, mirroring
-                                // the already-connected flow: reconnect once it tears down.
                                 mService.registerObserver(new HumlaObserver() {
                                     @Override
                                     public void onDisconnected(HumlaException e) {
@@ -1051,17 +976,13 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                             }
                         });
                         builder.setNegativeButton(android.R.string.cancel, (dialog, which) -> {
-                            if (getService() != null) {
-                                getService().markErrorShown();
-                            }
+                            if (getService() != null) getService().markErrorShown();
                         });
                     } else {
                         String msg = error != null ? error.getMessage() : getString(R.string.unknown);
                         builder.setMessage(msg);
                         builder.setPositiveButton(android.R.string.ok, (dialog, which) -> {
-                            if (getService() != null) {
-                                getService().markErrorShown();
-                            }
+                            if (getService() != null) getService().markErrorShown();
                         });
                     }
                     builder.setCancelable(false);
@@ -1070,10 +991,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 break;
         }
     }
-
-    /*
-     * HERE BE IMPLEMENTATIONS
-     */
 
     @Override
     public IMumlaService getService() {
@@ -1098,9 +1015,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, @Nullable String key) {
         super.onSharedPreferenceChanged(sharedPreferences, key);
-        if (key == null) {
-            return;
-        }
+        if (key == null) return;
         switch (key) {
             case Settings.PREF_STAY_AWAKE:
                 setStayAwake(mSettings.shouldStayAwake());
@@ -1123,8 +1038,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             Server server = mService.getTargetServer();
             return server.getName().isEmpty() ? server.getHost() : server.getName();
         }
-        if (BuildConfig.DEBUG)
-            throw new RuntimeException("getConnectedServerName should only be called if connected!");
+        if (BuildConfig.DEBUG) throw new RuntimeException("getConnectedServerName should only be called if connected!");
         return "";
     }
 
@@ -1144,6 +1058,96 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 break;
         }
     }
+
+    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (DITAMBAHKAN) ---
+    
+    private void showEmbeddedServerCredentialsDialog(final Server embedded) {
+        int pad = (int) (getResources().getDisplayMetrics().density * 16.0f);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(pad, pad, pad, pad);
+        
+        TextView userLabel = new TextView(this);
+        userLabel.setText("Masukkan Nama Panggilan:");
+        layout.addView(userLabel);
+        
+        final EditText userEdit = new EditText(this);
+        userEdit.setHint(mSettings.getDefaultUsername());
+        userEdit.setSingleLine(true);
+        layout.addView(userEdit);
+        
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(layout);
+        
+        userEdit.post(() -> userEdit.requestFocus());
+        
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Selamat Datang di " + EMBEDDED_SERVER_NAME)
+                .setView(scrollView)
+                .setCancelable(false)
+                .setPositiveButton("SIMPAN & MASUK", (dialog, which) -> {
+                    String username = userEdit.getText().toString().trim();
+                    if (username.isEmpty()) {
+                        username = mSettings.getDefaultUsername();
+                    }
+                    embedded.setUsername(username);
+                    mDatabase.updateServer(embedded);
+                    
+                    PreferenceManager.getDefaultSharedPreferences(this)
+                            .edit()
+                            .putBoolean(PREF_EMBEDDED_SETUP_DONE, true)
+                            .apply();
+                    
+                    generateEmbeddedCertificateSilently(embedded);
+                })
+                .show();
+    }
+
+    private void generateEmbeddedCertificateSilently(final Server embedded) {
+        final Context appContext = getApplicationContext();
+        new AsyncTask<Void, Void, DatabaseCertificate>() {
+            @Override
+            protected DatabaseCertificate doInBackground(Void... params) {
+                try {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    HumlaCertificateGenerator.generateCertificate(baos);
+                    String fileName = "AutoCert_" + new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault()).format(new Date());
+                    
+                    MumlaSQLiteDatabase db = new MumlaSQLiteDatabase(appContext);
+                    DatabaseCertificate dc = db.addCertificate(fileName, baos.toByteArray());
+                    db.close();
+                    return dc;
+                } catch (Exception e) {
+                    Log.e(TAG, "silent certificate generation failed", e);
+                    return null;
+                }
+            }
+
+            @Override
+            protected void onPostExecute(DatabaseCertificate result) {
+                if (result != null) {
+                    mSettings.setDefaultCertificateId(result.getId());
+                }
+                connectToServer(embedded);
+            }
+        }.execute();
+    }
+
+    private Server findOrCreateEmbeddedServer() {
+        if (EMBEDDED_SERVER_HOST.isEmpty()) return null;
+        
+        for (Server existing : mDatabase.getServers()) {
+            if (EMBEDDED_SERVER_HOST.equalsIgnoreCase(existing.getHost()) && 
+                existing.getPort() == EMBEDDED_SERVER_PORT) {
+                return existing;
+            }
+        }
+        
+        Server server = new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
+        mDatabase.addServer(server);
+        return server;
+    }
+    // --------------------------------------------------------
 
     private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
 
