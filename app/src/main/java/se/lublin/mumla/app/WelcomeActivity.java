@@ -2,6 +2,7 @@ package se.lublin.mumla.app;
 
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
+import se.lublin.mumla.R;
 
 public class WelcomeActivity extends AppCompatActivity {
 
