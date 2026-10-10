@@ -123,9 +123,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
 
     // --- AUTO-CONNECT LOGIC: KONFIGURASI SERVER ---
     // GANTI DENGAN ALAMAT SERVER DAN PORT ASLIMU DI SINI
-    private static final String EMBEDDED_SERVER_HOST = Ahmad.cleanvoice.ru"; 
-    private static final int EMBEDDED_SERVER_PORT  65202;
-    private static final String EMBEDDED_SERVER_NAME = SATU UNTUK SEMUA";
+    private static final String EMBEDDED_SERVER_HOST = "Ahmad.cleanvoice.ru";
+private static final int EMBEDDED_SERVER_PORT = 65202;
+private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
     private static final String PREF_EMBEDDED_SETUP_DONE = "embedded_server_setup_done";
     
     private boolean mAutoConnectAttempted = false;
