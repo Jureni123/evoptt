@@ -59,7 +59,7 @@ public class FavouriteServerListFragment extends Fragment implements AdapterView
 
         try {
             mConnectHandler = (ServerConnectHandler) context;
-            mDatabaseProvider = (DatabaseProvider) context
+            mDatabaseProvider = (DatabaseProvider) context; // <-- SUDAH DITAMBAH TITIK KOMA
         } catch (ClassCastException e) {
             throw new ClassCastException(context.toString() + " must implement ServerConnectHandler and DatabaseProvider!");
         }
@@ -73,9 +73,6 @@ public class FavouriteServerListFragment extends Fragment implements AdapterView
         mServerGrid.setOnItemClickListener(this);
         mServerGrid.setEmptyView(view.findViewById(R.id.server_list_grid_empty));
 
-        // CATATAN: registerForContextMenu dihapus agar user tidak bisa long-press 
-        // untuk edit/delete server (Demi keamanan & tampilan minimalis)
-        
         return view;
     }
 
@@ -93,18 +90,15 @@ public class FavouriteServerListFragment extends Fragment implements AdapterView
         
         // 2. Update daftar server
         updateServers();
-        }
+    }
 
     @Override
     public void onPause() {
         super.onPause();
-        // Opsional: Munculkan kembali Action Bar saat pindah ke fragment lain
-        // Biarkan MumlaActivity yang menangani ini agar lebih aman
     }
 
     public void updateServers() {
         List<Server> servers = getServers();
-        // Listener dilempar sebagai 'this', tapi karena menu dihapus, fungsinya tidak akan terpanggil
         mServerAdapter = new FavouriteServerAdapter(getActivity(), servers, (FavouriteServerAdapter.FavouriteServerAdapterMenuListener) this);
         mServerGrid.setAdapter(mServerAdapter);
     }
@@ -115,15 +109,12 @@ public class FavouriteServerListFragment extends Fragment implements AdapterView
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-        // Langsung connect saat card ditekan, simpel dan cepat
         Server selectedServer = mServerAdapter.getItem(position);
         if (selectedServer != null) {
             mConnectHandler.connectToServer(selectedServer);
         }
     }
 
-    // Interface ini dipertahankan agar tidak error dengan FavouriteServerAdapter, 
-    // tapi method-nya dibiarkan kosong karena kita sudah menghapus menu edit/delete/share.
     @Override
     public void editServer(Server server) { }
 
