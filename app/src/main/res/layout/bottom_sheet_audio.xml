@@ -17,7 +17,7 @@
         android:gravity="center"
         android:layout_marginBottom="24dp" />
 
-    <!-- Mute Mic -->
+    <!-- Mute Mic (ZONA AMAN - TIDAK DIUBAH) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -39,7 +39,7 @@
             android:layout_height="wrap_content" />
     </LinearLayout>
 
-    <!-- Deafen Speaker -->
+    <!-- Deafen Speaker (ZONA AMAN - TIDAK DIUBAH) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -67,7 +67,7 @@
         android:background="#333333"
         android:layout_marginBottom="16dp"/>
 
-    <!-- Transmit Mode -->
+    <!-- Transmit Mode (BAGIAN YANG DIPERBARUI) -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -81,6 +81,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <!-- 1. VOX (TETAP SAMA) -->
         <RadioButton
             android:id="@+id/radio_vox"
             android:layout_width="match_parent"
@@ -89,21 +90,52 @@
             android:textColor="#FFFFFF"
             app:buttonTint="#8AB4F8"/>
 
+        <!-- 2. PTT HOLD (DEFAULT LAMA) -->
         <RadioButton
             android:id="@+id/radio_ptt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Push-to-Talk (PTT)"
+            android:text="PTT Tekan Terus (Hold)"
             android:textColor="#FFFFFF"
             app:buttonTint="#8AB4F8"/>
 
+        <!-- 3. STICKY PTT / TOGGLE (PRIORITAS BARU) -->
+        <RadioButton
+            android:id="@+id/radio_ptt_sticky"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="PTT Sekali Tekan (Toggle)"
+            android:textColor="#FFFFFF"
+            app:buttonTint="#4CAF50"/> 
+            <!-- Warna hijau beda biar user sadar ini mode spesial -->
+
+        <!-- 4. HEADSET BUTTON FISIK -->
+        <RadioButton
+            android:id="@+id/radio_headset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tombol Headset Fisik"
+            android:textColor="#FFFFFF"
+            app:buttonTint="#8AB4F8"/>
+
+        <!-- 5. BLUETOOTH PTT -->
+        <RadioButton
+            android:id="@+id/radio_bluetooth"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bluetooth PTT"
+            android:textColor="#FFFFFF"
+            app:buttonTint="#8AB4F8"/>
+
+        <!-- 6. CONTINUOUS (TETAP SAMA) -->
         <RadioButton
             android:id="@+id/radio_continuous"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Continuous"
+            android:text="Continuous (Siaran)"
             android:textColor="#FFFFFF"
             app:buttonTint="#8AB4F8"/>
+
     </RadioGroup>
 
 </LinearLayout>
