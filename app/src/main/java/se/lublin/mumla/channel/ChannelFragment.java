@@ -200,18 +200,56 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         });
         mTargetPanelText = view.findViewById(R.id.target_panel_warning);
 
-        // === BARU: Setup Bottom Control Bar ===
+        // === PERBAIKAN: Setup Bottom Control Bar (VERSI AMAN TANPA CRASH) ===
         mBottomControlBar = inflater.inflate(R.layout.bottom_control_bar, container, false);
         mBtnAudioMenu = mBottomControlBar.findViewById(R.id.btn_audio_menu);
         mBtnSessionMenu = mBottomControlBar.findViewById(R.id.btn_session_menu);
         mPttContainer = mBottomControlBar.findViewById(R.id.ptt_container);
 
-        // Pindahkan mTalkView (PTT asli) ke dalam container tengah di Bottom Bar
-        if (mTalkView != null && mTalkView.getParent() != null) {
-            ((ViewGroup) mTalkView.getParent()).removeView(mTalkView);
-        }
-        if (mPttContainer != null && mTalkView != null) {
-            mPttContainer.addView(mTalkView);
+        // Cari tombol PTT DI DALAM container baru dari layout XML
+        Button newPttButton = mPttContainer != null ? 
+            mPttContainer.findViewById(R.id.pushtotalk) : null;
+
+        if (newPttButton != null) {
+            // Gunakan tombol baru dari layout XML & pasang listener langsung
+            newPttButton.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    switch (event.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            v.setPressed(true);
+                            if (getService() != null) getService().onTalkKeyDown();
+                            break;
+                        case MotionEvent.ACTION_UP:
+                            v.setPressed(false);
+                            if (getService() != null) getService().onTalkKeyUp();
+                            break;
+                        case MotionEvent.ACTION_CANCEL:
+                            v.setPressed(false);
+                            if (getService() != null) getService().onTalkKeyCancel();
+                            break;
+                    }
+                    return true;
+                }
+            });
+            
+            // Update referensi global agar metode lain tetap bekerja
+            mTalkButton = newPttButton;
+            mTalkView = newPttButton;
+        } else {
+            // Fallback: Jika container baru belum siap, gunakan view lama di posisi default
+            // Ini menjamin aplikasi tetap bisa connect meski layout PTT bulat bermasalah
+            if (mTalkView != null && mTalkView.getParent() != null) {
+                ((ViewGroup) mTalkView.getParent()).removeView(mTalkView);
+                if (view instanceof ViewGroup) {
+                    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.BOTTOM
+                    );
+                    ((ViewGroup) view).addView(mTalkView, params);
+                }
+            }
         }
 
         // Tambahkan Bottom Bar ke bagian paling bawah layout utama
