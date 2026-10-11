@@ -8,7 +8,7 @@
     android:foreground="?selectableItemBackground"
     app:cardCornerRadius="20dp"
     app:cardElevation="4dp"
-    app:cardBackgroundColor="#121212"> <!-- True Black / Dark Gray untuk OLED -->
+    app:cardBackgroundColor="#121212">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -16,22 +16,20 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <!-- 1. AREA LOGO / COVER ART BESAR (Seperti Album Art) -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="160dp"
             android:layout_marginBottom="16dp"
-            android:background="@drawable/bg_server_placeholder"> <!-- Lihat instruksi di bawah untuk file ini -->
+            android:background="@drawable/bg_server_placeholder">
             
             <ImageView
                 android:layout_width="64dp"
                 android:layout_height="64dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_server_light"
-                app:tint="#8AB4F8" /> <!-- Google Blue agar pop-up di OLED -->
+                app:tint="#8AB4F8" />
         </FrameLayout>
 
-        <!-- 2. NAMA SERVER (Judul Besar, Tengah) -->
         <TextView
             android:id="@+id/server_row_name"
             android:layout_width="match_parent"
@@ -43,7 +41,6 @@
             android:textColor="#FFFFFF"
             android:textSize="20sp" />
 
-        <!-- 3. STATUS (Online/Offline) - Repurpose dari version_status -->
         <TextView
             android:id="@+id/server_row_version_status"
             android:layout_width="wrap_content"
@@ -53,14 +50,10 @@
             android:drawablePadding="6dp"
             android:fontFamily="sans-serif"
             android:text="● Online"
-            android:textColor="#81C995" <!-- Google Green -->
+            android:textColor="#81C995"
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <!-- ======================================================= -->
-        <!-- AREA PRIVASI: ID TETAP ADA, TAPI DISEMBUNYIKAN (GONE)   -->
-        <!-- Adapter tetap bisa inject data, tapi user tidak lihat   -->
-        <!-- ======================================================= -->
         <TextView
             android:id="@+id/server_row_address"
             android:layout_width="0dp"
@@ -85,7 +78,6 @@
             android:layout_height="0dp"
             android:visibility="gone" />
 
-        <!-- 4. PROGRESS BAR KEREN (Gaya Google Play Store) -->
         <ProgressBar
             android:id="@+id/server_row_ping_progress"
             style="?android:attr/progressBarStyleHorizontal"
@@ -95,15 +87,14 @@
             android:layout_marginHorizontal="8dp"
             android:progressDrawable="@drawable/progress_playstore_style"
             android:indeterminate="true"
-            android:visibility="invisible" /> <!-- Tetap invisible, akan di-trigger adapter saat ping -->
+            android:visibility="invisible" />
 
-        <!-- 5. TOMBOL OVERFLOW (Edit/Delete) di Pojok Kanan Atas -->
         <ImageView
             android:id="@+id/server_row_more"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_gravity="end"
-            android:layout_marginTop="-220dp" <!-- Menariknya ke atas menumpuk di area cover -->
+            android:layout_marginTop="-220dp"
             android:background="?selectableItemBackgroundBorderless"
             android:padding="8dp"
             android:src="@drawable/ic_card_overflow"
