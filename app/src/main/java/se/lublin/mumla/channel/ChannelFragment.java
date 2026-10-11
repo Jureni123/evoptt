@@ -247,7 +247,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
         }
 
-        // 3. Tombol List CH - MENAMPILKAN DIALOG LIST CHANNEL (VERSI REKURSIF AMAN)
+        // 3. Tombol List CH - MENAMPILKAN DIALOG LIST CHANNEL (VERSI REKURSIF + JUMLAH USER)
         if (mBtnListCh != null) {
             mBtnListCh.setOnClickListener(v -> showChannelListDialog());
         }
@@ -261,7 +261,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         return view;
     }
 
-    // === METODE FINAL: LIST CHANNEL DENGAN REKURSI MURNI (TANPA GETCHANNELS) ===
+    // === METODE FINAL: LIST CHANNEL DENGAN REKURSI MURNI + JUMLAH USER ===
     private void showChannelListDialog() {
         if (getService() == null || !getService().isConnected()) {
             Toast.makeText(requireContext(), "Belum terhubung ke server", Toast.LENGTH_SHORT).show();
@@ -292,7 +292,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             
             for (int i = 0; i < allChannels.size(); i++) {
                 IChannel ch = allChannels.get(i);
-                channelNames[i] = ch.getName();
+                
+                // AMBIL JUMLAH USER DI CHANNEL INI
+                int userCount = 0;
+                if (ch.getUsers() != null) {
+                    userCount = ch.getUsers().size();
+                }
+                
+                // FORMAT NAMA: "Nama Channel (Jumlah User)"
+                channelNames[i] = ch.getName() + " (" + userCount + ")";
                 channelIds[i] = ch.getId();
             }
             
@@ -302,8 +310,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 .setItems(channelNames, (dialog, which) -> {
                     int targetId = channelIds[which];
                     session.joinChannel(targetId);
+                    
+                    // Ambil nama asli tanpa jumlah user untuk toast
+                    String cleanName = allChannels.get(which).getName();
                     Toast.makeText(requireContext(), 
-                        "Bergabung ke: " + channelNames[which], 
+                        "Bergabung ke: " + cleanName, 
                         Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Batal", null)
