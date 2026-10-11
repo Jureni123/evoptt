@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- Avatar Bulat / State Icon -->
+    <ImageView
+        android:id="@+id/img_avatar_state"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:scaleType="centerCrop" />
+
+    <!-- Container Info User -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp">
+
+        <!-- Baris Atas: Nama + Badge Channel -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_username"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Username"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- Badge Channel -->
+            <TextView
+                android:id="@+id/tv_channel_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CH 009"
+                android:textSize="10sp"
+                android:textColor="#000000"
+                android:background="#FFD700"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:layout_marginStart="8dp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Baris Bawah: Lokasi / Comment -->
+        <TextView
+            android:id="@+id/tv_location_comment"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ID, Sulawesi Tenggara..."
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginTop="2dp"/>
+    </LinearLayout>
+
+    <!-- Tombol More Options (Opsional) -->
+    <ImageView
+        android:id="@+id/img_more_options"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:src="@drawable/ic_action_overflow"
+        android:tint="#888888"
+        android:background="?selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"/>
+
+</LinearLayout>
