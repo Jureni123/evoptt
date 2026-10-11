@@ -145,13 +145,16 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             configureTargetPanel();
         }
         
+        // PERBAIKAN 1: HAPUS METHOD onChannelChanged KARENA TIDAK ADA DI INTERFACE ASLI
         // Observer tambahan untuk update header saat channel berubah
+        /*
         @Override
         public void onChannelChanged(IChannel channel) {
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
                 refreshSingleChannelView();
             }
         }
+        */
     };
 
     @Override
@@ -359,16 +362,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 mTvBandwidth.setText("↑: " + bwKb + " kb ↓: " + bwKb + " kb");
             }
 
-            // Update List User
-            List<IUser> users = currentChannel.getUsers();
-            if (users != null) {
-                // Sorting by Join Time (Urutan Server Default)
-                // Karena IUser tidak punya timestamp join eksplisit di interface standar,
-                // kita asumsikan urutan list dari server sudah sesuai waktu join.
-                // Jika ingin sort alphabet, uncomment baris bawah:
-                // users.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
-                
-                mSingleUserAdapter.setUsers(new ArrayList<>(users));
+            // PERBAIKAN 2: HANDLE WILDCARD TYPE List<? extends IUser> AGAR KOMPATIBEL
+            List<? extends IUser> rawUsers = currentChannel.getUsers();
+            List<IUser> users = rawUsers != null ? new ArrayList<>(rawUsers) : new ArrayList<>();
+            
+            if (!users.isEmpty()) {
+                mSingleUserAdapter.setUsers(users);
             } else {
                 mSingleUserAdapter.setUsers(new ArrayList<>());
             }
@@ -860,6 +859,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mChatTargetListeners.add(listener);
     }
 
+    // PERBAIKAN 3: GANTI NAMA METHOD SESUAI INTERFACE ASLI (TAMBAHKAN KATA "Selected")
     @Override
     public void unregisterChatTargetSelectedListener(OnChatTargetSelectedListener listener) {
         mChatTargetListeners.remove(listener);
