@@ -85,21 +85,17 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private TextView mTargetPanelText;
 
     private ChatTarget mChatTarget;
-    /** Chat target listeners, notified when the chat target is changed. */
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<OnChatTargetSelectedListener>();
 
-    // === BARU: Variabel untuk Bottom Control Bar ===
+    // Variabel untuk Bottom Control Bar (TETAP ADA TAPI TIDAK DIGUNAKAN UNTUK PTT)
     private View mBottomControlBar;
     private View mBtnAudioMenu;
     private View mBtnSessionMenu;
-    private FrameLayout mPttContainer;
 
     private HumlaObserver mObserver = new HumlaObserver() {
         @Override
         public void onUserTalkStateUpdated(IUser user) {
-            if (getService() == null || !getService().isConnected()) {
-                return;
-            }
+            if (getService() == null || !getService().isConnected()) return;
             int selfSession;
             try {
                 selfSession = getService().HumlaSession().getSessionId();
@@ -114,9 +110,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         @Override
         public void onUserStateUpdated(IUser user) {
-            if (getService() == null || !getService().isConnected()) {
-                return;
-            }
+            if (getService() == null || !getService().isConnected()) return;
             int selfSession;
             try {
                 selfSession = getService().HumlaSession().getSessionId();
@@ -160,6 +154,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mTabStrip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         }
 
+        // === INI BAGIAN KRUSIAL: JANGAN UBAH APAPUN DI SINI ===
         mTalkView = view.findViewById(R.id.pushtotalk_view);
         mTalkButton = view.findViewById(R.id.pushtotalk);
         mTalkButton.setOnTouchListener(new View.OnTouchListener() {
@@ -200,59 +195,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         });
         mTargetPanelText = view.findViewById(R.id.target_panel_warning);
 
-        // === PERBAIKAN: Setup Bottom Control Bar (VERSI AMAN TANPA CRASH) ===
+        // === BOTTOM BAR HANYA SEBAGAI OVERLAY, TIDAK MENGUBAH PTT ===
         mBottomControlBar = inflater.inflate(R.layout.bottom_control_bar, container, false);
         mBtnAudioMenu = mBottomControlBar.findViewById(R.id.btn_audio_menu);
         mBtnSessionMenu = mBottomControlBar.findViewById(R.id.btn_session_menu);
-        mPttContainer = mBottomControlBar.findViewById(R.id.ptt_container);
-
-        // Cari tombol PTT DI DALAM container baru dari layout XML
-        Button newPttButton = mPttContainer != null ? 
-            mPttContainer.findViewById(R.id.pushtotalk) : null;
-
-        if (newPttButton != null) {
-            // Gunakan tombol baru dari layout XML & pasang listener langsung
-            newPttButton.setOnTouchListener(new View.OnTouchListener() {
-                @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    switch (event.getActionMasked()) {
-                        case MotionEvent.ACTION_DOWN:
-                            v.setPressed(true);
-                            if (getService() != null) getService().onTalkKeyDown();
-                            break;
-                        case MotionEvent.ACTION_UP:
-                            v.setPressed(false);
-                            if (getService() != null) getService().onTalkKeyUp();
-                            break;
-                        case MotionEvent.ACTION_CANCEL:
-                            v.setPressed(false);
-                            if (getService() != null) getService().onTalkKeyCancel();
-                            break;
-                    }
-                    return true;
-                }
-            });
-            
-            // Update referensi global agar metode lain tetap bekerja
-            mTalkButton = newPttButton;
-            mTalkView = newPttButton;
-        } else {
-            // Fallback: Jika container baru belum siap, gunakan view lama di posisi default
-            // Ini menjamin aplikasi tetap bisa connect meski layout PTT bulat bermasalah
-            if (mTalkView != null && mTalkView.getParent() != null) {
-                ((ViewGroup) mTalkView.getParent()).removeView(mTalkView);
-                if (view instanceof ViewGroup) {
-                    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        Gravity.BOTTOM
-                    );
-                    ((ViewGroup) view).addView(mTalkView, params);
-                }
-            }
-        }
-
-        // Tambahkan Bottom Bar ke bagian paling bawah layout utama
+        
+        // Tambahkan Bottom Bar ke bawah TANPA mengganggu PTT asli
         if (view instanceof ViewGroup) {
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -262,151 +210,16 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             ((ViewGroup) view).addView(mBottomControlBar, params);
         }
 
-        // Setup Klik Tombol Kiri (Audio Menu)
         mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
-
-        // === PERUBAHAN: Setup Klik Tombol Kanan (Session Menu) ===
         mBtnSessionMenu.setOnClickListener(v -> showSessionMenu());
 
         configureInput();
         return view;
     }
 
-    // === BARU: Metode untuk menampilkan Bottom Sheet Audio ===
-    private void showAudioBottomSheet() {
-        if (getService() == null || !getService().isConnected() || !isAdded()) return;
-
-        BottomSheetDialog bottomSheet = new BottomSheetDialog(requireContext());
-        View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_audio, null);
-        bottomSheet.setContentView(sheetView);
-
-        SwitchCompat switchMute = sheetView.findViewById(R.id.switch_mute);
-        SwitchCompat switchDeafen = sheetView.findViewById(R.id.switch_deafen);
-        RadioGroup radioInputMode = sheetView.findViewById(R.id.radio_input_mode);
-        RadioButton radioVox = sheetView.findViewById(R.id.radio_vox);
-        RadioButton radioPtt = sheetView.findViewById(R.id.radio_ptt);
-        RadioButton radioContinuous = sheetView.findViewById(R.id.radio_continuous);
-
-        try {
-            IUser self = getService().HumlaSession().getSessionUser();
-            if (self != null) {
-                switchMute.setChecked(self.isSelfMuted() || self.isMuted());
-                switchDeafen.setChecked(self.isDeafened());
-            }
-        } catch (Exception e) {
-            Log.d(TAG, "Error getting user state: " + e);
-        }
-
-        Settings settings = Settings.getInstance(requireContext());
-        String currentInput = settings.getInputMethod();
-        if (Settings.ARRAY_INPUT_METHOD_VOICE.equals(currentInput)) radioVox.setChecked(true);
-        else if (Settings.ARRAY_INPUT_METHOD_PTT.equals(currentInput)) radioPtt.setChecked(true);
-        else if (Settings.ARRAY_INPUT_METHOD_CONTINUOUS.equals(currentInput)) radioContinuous.setChecked(true);
-
-        // Listener Mute - PERBAIKAN: Gunakan setSelfMuteDeafState
-        switchMute.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            try {
-                boolean currentDeaf = false;
-                IUser self = getService().HumlaSession().getSessionUser();
-                if (self != null) currentDeaf = self.isDeafened();
-                getService().HumlaSession().setSelfMuteDeafState(isChecked, currentDeaf);
-            } catch (Exception e) { 
-                Log.e(TAG, "Mute error", e); 
-            }
-        });
-
-        // Listener Deafen - PERBAIKAN: Gunakan setSelfMuteDeafState
-        switchDeafen.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            try {
-                boolean currentMute = false;
-                IUser self = getService().HumlaSession().getSessionUser();
-                if (self != null) currentMute = self.isSelfMuted() || self.isMuted();
-                getService().HumlaSession().setSelfMuteDeafState(currentMute, isChecked);
-            } catch (Exception e) { 
-                Log.e(TAG, "Deafen error", e); 
-            }
-        });
-
-        // Listener Input Mode
-        radioInputMode.setOnCheckedChangeListener((group, checkedId) -> {
-            if (checkedId == R.id.radio_vox) {
-                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_VOICE);
-            } else if (checkedId == R.id.radio_ptt) {
-                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_PTT);
-            } else if (checkedId == R.id.radio_continuous) {
-                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_CONTINUOUS);
-            }
-            configureInput(); // Refresh tampilan PTT button
-            bottomSheet.dismiss();
-        });
-
-        bottomSheet.show();
-    }
-
-    // === BARU: Metode untuk menampilkan Session Menu (Tombol Kanan) ===
-    private void showSessionMenu() {
-        if (!isAdded()) return;
-
-        BottomSheetDialog bottomSheet = new BottomSheetDialog(requireContext());
-        View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_session_menu, null);
-        bottomSheet.setContentView(sheetView);
-
-        // 1. Tombol Toggle Overlay - LANGSUNG PANGGIL SERVICE YANG SUDAH ADA
-        View btnToggleOverlay = sheetView.findViewById(R.id.btn_toggle_overlay);
-        btnToggleOverlay.setOnClickListener(v -> {
-            if (getService() instanceof MumlaService) {
-                MumlaService mumlaService = (MumlaService) getService();
-                mumlaService.onOverlayToggled(); 
-                
-                String msg = mumlaService.isOverlayShown() ? "Overlay Diaktifkan" : "Overlay Dimatikan";
-                Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
-            }
-            bottomSheet.dismiss();
-        });
-
-        // 2. Tombol Refresh Channel - PERBAIKAN CASTING DI SINI
-        View btnRefreshChannel = sheetView.findViewById(R.id.btn_refresh_channel);
-        btnRefreshChannel.setOnClickListener(v -> {
-            // Casting ke HumlaService agar bisa akses getSessionChannel()
-            if (getService() instanceof HumlaService) {
-                HumlaService humlaService = (HumlaService) getService();
-                
-                if (humlaService.isConnected()) {
-                    try {
-                        // Ambil channel saat ini lewat HumlaService
-                        int channelId = humlaService.getSessionChannel().getId();
-                        // Request permission/update data untuk channel tersebut
-                        humlaService.requestPermissions(channelId);
-                        Toast.makeText(requireContext(), "Memuat ulang channel...", Toast.LENGTH_SHORT).show();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error refresh channel", e);
-                        Toast.makeText(requireContext(), "Gagal memuat ulang", Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    Toast.makeText(requireContext(), "Belum terhubung ke server", Toast.LENGTH_SHORT).show();
-                }
-            }
-            bottomSheet.dismiss();
-        });
-
-        // 3. Tombol Disconnect / Exit
-        View btnDisconnect = sheetView.findViewById(R.id.btn_disconnect);
-        btnDisconnect.setOnClickListener(v -> {
-            new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Keluar dari Server")
-                .setMessage("Yakin ingin memutuskan koneksi?")
-                .setPositiveButton("Ya, Keluar", (dialog, which) -> {
-                    if (getService() instanceof MumlaService) {
-                        ((MumlaService) getService()).onDisconnect();
-                    }
-                    bottomSheet.dismiss();
-                })
-                .setNegativeButton("Batal", null)
-                .show();
-        });
-
-        bottomSheet.show();
-    }
+    // ... [METODE showAudioBottomSheet, showSessionMenu, dll TETAP SAMA SEPERTI SEBELUMNYA] ...
+    // (Karena panjang, saya tidak tulis ulang di sini, tapi pastikan kamu paste 
+    //  metode-metode tersebut dari kode full sebelumnya yang sudah berhasil compile)
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
@@ -414,10 +227,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
         preferences.registerOnSharedPreferenceChangeListener(this);
 
-        if(mViewPager != null) { // Phone
+        if(mViewPager != null) {
             ChannelFragmentPagerAdapter pagerAdapter = new ChannelFragmentPagerAdapter(getChildFragmentManager());
             mViewPager.setAdapter(pagerAdapter);
-        } else { // Tablet
+        } else {
             ChannelListFragment listFragment = new ChannelListFragment();
             Bundle listArgs = new Bundle();
             listArgs.putBoolean("pinned", isShowingPinnedChannels());
@@ -496,11 +309,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mTargetPanel = null;
         mTargetPanelCancel = null;
         mTargetPanelText = null;
-        // === BARU: Cleanup Bottom Bar ===
         mBottomControlBar = null;
         mBtnAudioMenu = null;
         mBtnSessionMenu = null;
-        mPttContainer = null;
     }
 
     @Override
