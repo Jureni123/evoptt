@@ -26,7 +26,7 @@
         <ImageView
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:src="@drawable/ic_action_audio" <!-- Ganti dengan ikon settings/audio -->
+            android:src="@drawable/ic_action_audio" 
             app:tint="#FFFFFF" />
         <TextView
             android:layout_width="wrap_content"
