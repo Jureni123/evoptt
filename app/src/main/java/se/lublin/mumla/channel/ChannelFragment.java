@@ -36,6 +36,7 @@ import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.fragment.app.Fragment;
@@ -46,6 +47,7 @@ import androidx.viewpager.widget.PagerTabStrip;
 import androidx.viewpager.widget.ViewPager;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +65,7 @@ import se.lublin.humla.util.VoiceTargetMode;
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
 import se.lublin.mumla.app.MumlaActivity;
+import se.lublin.mumla.service.MumlaService; // Import service untuk akses metode overlay/disconnect
 import se.lublin.mumla.util.HumlaServiceFragment;
 
 /**
@@ -224,11 +227,8 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         // Setup Klik Tombol Kiri (Audio Menu)
         mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
 
-        // Setup Klik Tombol Kanan (Session Menu)
-        mBtnSessionMenu.setOnClickListener(v -> {
-            // Placeholder: Nanti diisi logika Overlay, Refresh, Exit
-            android.widget.Toast.makeText(requireContext(), "Menu Sesi (Overlay/Refresh/Exit)", android.widget.Toast.LENGTH_SHORT).show();
-        });
+        // === PERUBAHAN: Setup Klik Tombol Kanan (Session Menu) ===
+        mBtnSessionMenu.setOnClickListener(v -> showSessionMenu());
 
         configureInput();
         return view;
@@ -300,6 +300,63 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             }
             configureInput(); // Refresh tampilan PTT button
             bottomSheet.dismiss();
+        });
+
+        bottomSheet.show();
+    }
+
+    // === BARU: Metode untuk menampilkan Session Menu (Tombol Kanan) ===
+    private void showSessionMenu() {
+        if (!isAdded()) return;
+
+        BottomSheetDialog bottomSheet = new BottomSheetDialog(requireContext());
+        View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_session_menu, null);
+        bottomSheet.setContentView(sheetView);
+
+        // 1. Tombol Toggle Overlay - LANGSUNG PANGGIL SERVICE YANG SUDAH ADA
+        View btnToggleOverlay = sheetView.findViewById(R.id.btn_toggle_overlay);
+        btnToggleOverlay.setOnClickListener(v -> {
+            if (getService() instanceof MumlaService) {
+                MumlaService mumlaService = (MumlaService) getService();
+                mumlaService.onOverlayToggled(); 
+                
+                String msg = mumlaService.isOverlayShown() ? "Overlay Diaktifkan" : "Overlay Dimatikan";
+                Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
+            }
+            bottomSheet.dismiss();
+        });
+
+        // 2. Tombol Refresh Channel
+        View btnRefreshChannel = sheetView.findViewById(R.id.btn_refresh_channel);
+        btnRefreshChannel.setOnClickListener(v -> {
+            if (getService() != null && getService().isConnected()) {
+                try {
+                    // Request ulang data channel dari server
+                    getService().HumlaSession().requestPermissions(getService().getSessionChannel().getId());
+                    Toast.makeText(requireContext(), "Memuat ulang channel...", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error refresh channel", e);
+                }
+            } else {
+                Toast.makeText(requireContext(), "Belum terhubung", Toast.LENGTH_SHORT).show();
+            }
+            bottomSheet.dismiss();
+        });
+
+        // 3. Tombol Disconnect / Exit
+        View btnDisconnect = sheetView.findViewById(R.id.btn_disconnect);
+        btnDisconnect.setOnClickListener(v -> {
+            new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Keluar dari Server")
+                .setMessage("Yakin ingin memutuskan koneksi?")
+                .setPositiveButton("Ya, Keluar", (dialog, which) -> {
+                    if (getService() instanceof MumlaService) {
+                        ((MumlaService) getService()).onDisconnect();
+                    }
+                    bottomSheet.dismiss();
+                })
+                .setNegativeButton("Batal", null)
+                .show();
         });
 
         bottomSheet.show();
