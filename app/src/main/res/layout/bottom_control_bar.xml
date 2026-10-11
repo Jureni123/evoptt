@@ -19,17 +19,17 @@
             android:textColor="#AAAAAA" android:layout_marginTop="4dp"/>
     </LinearLayout>
 
-    <!-- 2. ROOM LIST (Kiri Tengah - BARU!) -->
-    <LinearLayout android:id="@+id/btn_room_list"
+    <!-- 2. SESSION MENU (Kanan) -->
+    <LinearLayout android:id="@+id/btn_session_menu"
         android:layout_width="0dp" android:layout_weight="1"
         android:layout_height="wrap_content"
         android:orientation="vertical" android:gravity="center"
         android:background="?selectableItemBackgroundBorderless">
-        <ImageView android:src="@drawable/ic_action_channels" 
+        <ImageView android:src="@drawable/ic_more_vert_black_24dp" 
             android:layout_width="24dp" android:layout_height="24dp"
-            android:tint="#8AB4F8"/>
-        <TextView android:text="Rooms" android:textSize="10sp" 
-            android:textColor="#8AB4F8" android:layout_marginTop="4dp"/>
+            android:tint="#FFFFFF"/>
+        <TextView android:text="Menu" android:textSize="10sp" 
+            android:textColor="#AAAAAA" android:layout_marginTop="4dp"/>
     </LinearLayout>
 
     <!-- 3. PTT BUTTON (TENGAH - BULAT BESAR) -->
@@ -45,18 +45,5 @@
             android:elevation="4dp"/>
             
     </FrameLayout>
-
-    <!-- 4. SESSION MENU (Kanan) -->
-    <LinearLayout android:id="@+id/btn_session_menu"
-        android:layout_width="0dp" android:layout_weight="1"
-        android:layout_height="wrap_content"
-        android:orientation="vertical" android:gravity="center"
-        android:background="?selectableItemBackgroundBorderless">
-        <ImageView android:src="@drawable/ic_more_vert_black_24dp" 
-            android:layout_width="24dp" android:layout_height="24dp"
-            android:tint="#FFFFFF"/>
-        <TextView android:text="Menu" android:textSize="10sp" 
-            android:textColor="#AAAAAA" android:layout_marginTop="4dp"/>
-    </LinearLayout>
 
 </LinearLayout>
