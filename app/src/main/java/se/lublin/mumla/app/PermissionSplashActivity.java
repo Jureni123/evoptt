@@ -22,10 +22,9 @@
  * Repository: github.com/Juren123/evoptt
  * 
  * Changes:
- * - Integrated SYSTEM_ALERT_WINDOW (Overlay) permission check into splash flow.
- * - Ensures all permissions (Audio, Storage, Overlay) are granted upfront 
- *   for a seamless, interruption-free voice chat experience.
- * - Enhanced UI text to clearly explain the purpose of each permission.
+ * - Fixed Overlay Permission Intent to use hardcoded package name for accuracy.
+ * - Ensures users are directed straight to Mumla OLED settings, not the general list.
+ * - Simplified dialog text for better understanding by non-tech-savvy users.
  * 
  * Original Author: Andrew Comminos
  * License: GPL-3.0
@@ -38,7 +37,6 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Button;
@@ -57,6 +55,10 @@ import se.lublin.mumla.R;
 public class PermissionSplashActivity extends AppCompatActivity {
     private static final int REQ_CODE_STANDARD = 200;
     private static final int REQ_CODE_OVERLAY = 201;
+
+    // ✅ HARDKODE NAMA PAKET SESUAI PROPERTI APK
+    // Ini memastikan "GPS" selalu menunjuk ke Mumla OLED, bukan aplikasi lain
+    private static final String TARGET_PACKAGE_NAME = "se.lublin.mumla.oled15";
 
     // ✅ DAFTAR IZIN STANDAR (Mic & Storage)
     private static final String[] PERMS_STANDARD = {
@@ -77,7 +79,7 @@ public class PermissionSplashActivity extends AppCompatActivity {
         setContentView(R.layout.activity_permission_splash);
         
         TextView tvDesc = findViewById(R.id.tv_desc);
-        tvDesc.setText("Aplikasi butuh akses:\n1. Mic (untuk PTT & Voice)\n2. Storage (untuk Visualizer/Memo)\n3. Overlay (untuk fitur HUD di atas aplikasi lain).\n\nKlik tombol di bawah untuk mengatur izin.");
+        tvDesc.setText("Aplikasi butuh akses:\n1. Mic (untuk PTT & Voice)\n2. Storage (untuk Visualizer/Memo)\n3. Overlay (agar tombol PTT bisa muncul di layar).\n\nKlik tombol di bawah untuk mengatur izin.");
         
         Button btnGrant = findViewById(R.id.btn_grant);
         btnGrant.setOnClickListener(v -> 
@@ -132,7 +134,7 @@ public class PermissionSplashActivity extends AppCompatActivity {
         }
     }
 
-    // ✅ METODE KHUSUS UNTUK MENANGANI IZIN OVERLAY
+    // ✅ METODE KHUSUS UNTUK MENANGANI IZIN OVERLAY (VERSI FIXED)
     private void checkAndRequestOverlayPermission() {
         if (Settings.canDrawOverlays(this)) {
             // Sudah diizinkan, langsung masuk ke aplikasi utama
@@ -140,16 +142,16 @@ public class PermissionSplashActivity extends AppCompatActivity {
         } else {
             // Belum diizinkan, tampilkan dialog penjelasan yang ramah
             new MaterialAlertDialogBuilder(this)
-                .setTitle("Izin Overlay Diperlukan")
-                .setMessage("Untuk menggunakan fitur HUD/Overlay (tampilan mengambang saat menggunakan aplikasi lain), kamu perlu mengaktifkan izin 'Tampil di atas aplikasi lain' di pengaturan.\n\nApakah kamu ingin membukanya sekarang?")
+                .setTitle("Izin Tampilan Mengambang")
+                .setMessage("Sebentar lagi kamu akan masuk ke pengaturan. Tolong nyalakan tombol 'Izinkan tampil di atas aplikasi lain' khusus untuk Mumla OLED.")
                 .setPositiveButton("Ya, Buka Pengaturan", (dialog, which) -> {
+                    // Menggunakan TARGET_PACKAGE_NAME yang sudah di-hardcode
                     Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:" + getPackageName()));
+                            Uri.parse("package:" + TARGET_PACKAGE_NAME));
                     startActivityForResult(intent, REQ_CODE_OVERLAY);
                 })
                 .setNegativeButton("Nanti Saja", (dialog, which) -> {
-                    // Tetap masuk ke aplikasi, tapi fitur overlay tidak akan jalan sampai diizinkan manual
-                    Toast.makeText(this, "Fitur Overlay dinonaktifkan. Bisa diaktifkan nanti di pengaturan.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Fitur Overlay dinonaktifkan.", Toast.LENGTH_LONG).show();
                     goToMain();
                 })
                 .setCancelable(false)
@@ -164,9 +166,9 @@ public class PermissionSplashActivity extends AppCompatActivity {
         
         if (requestCode == REQ_CODE_OVERLAY) {
             if (Settings.canDrawOverlays(this)) {
-                Toast.makeText(this, "Izin Overlay berhasil diberikan! Fitur HUD siap digunakan.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Izin Overlay berhasil diberikan!", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, "Izin Overlay belum diberikan. Fitur HUD tidak akan muncul.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Izin Overlay belum diberikan.", Toast.LENGTH_LONG).show();
             }
             // Tetap masuk ke aplikasi utama setelah kembali dari pengaturan
             goToMain();
