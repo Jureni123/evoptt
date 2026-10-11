@@ -1,20 +1,7 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Modified for Mumla OLED Single Channel View Integration
  */
-
 package se.lublin.mumla.channel;
 
 import android.content.SharedPreferences;
@@ -43,6 +30,8 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.PagerTabStrip;
 import androidx.viewpager.widget.ViewPager;
 
@@ -85,6 +74,13 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private ImageView mTargetPanelCancel;
     private TextView mTargetPanelText;
 
+    // === BARU: Variabel untuk Single Channel View ===
+    private FrameLayout mSingleChContainer;
+    private RecyclerView mRvUserList;
+    private SingleChannelUserAdapter mSingleUserAdapter;
+    private View mHeaderSingleCh;
+    private TextView mTvChannelName, mTvChannelDesc, mTvUserCount, mTvLatency, mTvBandwidth;
+
     private ChatTarget mChatTarget;
     /** Chat target listeners, notified when the chat target is changed. */
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<OnChatTargetSelectedListener>();
@@ -110,8 +106,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 Log.d(TAG, "exception in onUserTalkStateUpdated: " + e);
                 return;
             }
+            
+            // Update PTT Button State (Lama)
             if (user != null && user.getSession() == selfSession && mTalkButton != null) {
                 mTalkButton.setActivated(isTalkingState(user.getTalkState()));
+            }
+
+            // Update Single CH View Real-time (BARU)
+            if (mSingleUserAdapter != null && mRvUserList != null) {
+                mSingleUserAdapter.updateUserState(user, mRvUserList);
             }
         }
 
@@ -129,12 +132,25 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             }
             if (user != null && user.getSession() == selfSession) {
                 configureInput();
+                
+                // Refresh list jika user pindah channel atau status berubah drastis
+                if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                    refreshSingleChannelView();
+                }
             }
         }
 
         @Override
         public void onVoiceTargetChanged(VoiceTargetMode mode) {
             configureTargetPanel();
+        }
+        
+        // Observer tambahan untuk update header saat channel berubah
+        @Override
+        public void onChannelChanged(IChannel channel) {
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
         }
     };
 
@@ -203,6 +219,55 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         });
         mTargetPanelText = view.findViewById(R.id.target_panel_warning);
 
+        // === BARU: Setup Single Channel View Container ===
+        mSingleChContainer = view.findViewById(R.id.single_ch_container);
+        mRvUserList = view.findViewById(R.id.rv_user_list);
+        
+        if (mRvUserList != null) {
+            mRvUserList.setLayoutManager(new LinearLayoutManager(requireContext()));
+            mSingleUserAdapter = new SingleChannelUserAdapter(requireContext());
+            
+            // Setup listener untuk klik user di single view
+            mSingleUserAdapter.setOnUserClickListener(new SingleChannelUserAdapter.OnUserClickListener() {
+                @Override
+                public void onUserClick(IUser user) {
+                    // Bisa tambahkan aksi khusus saat klik user di single view
+                    // Misalnya: whisper, pm, dll. Untuk sekarang biarkan default.
+                }
+
+                @Override
+                public void onMoreClick(IUser user, View anchorView) {
+                    // Tampilkan UserMenu seperti di tree view
+                    if (getService() instanceof MumlaService) {
+                        UserMenu menu = new UserMenu(requireContext(), user, 
+                            (MumlaService) getService(), 
+                            getChildFragmentManager(), 
+                            null); // Pass adapter listener jika perlu
+                        menu.showPopup(anchorView);
+                    }
+                }
+            });
+            
+            mRvUserList.setAdapter(mSingleUserAdapter);
+        }
+
+        // Inflate Header Single Channel secara manual dan tempel di atas RecyclerView
+        if (mRvUserList != null) {
+            mHeaderSingleCh = inflater.inflate(R.layout.header_single_channel, mRvUserList, false);
+            mTvChannelName = mHeaderSingleCh.findViewById(R.id.tv_channel_name);
+            mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
+            mTvUserCount = mHeaderSingleCh.findViewById(R.id.tv_user_count);
+            mTvLatency = mHeaderSingleCh.findViewById(R.id.tv_latency);
+            mTvBandwidth = mHeaderSingleCh.findViewById(R.id.tv_bandwidth);
+            
+            // Tambahkan header sebagai view pertama di RecyclerView
+            // Catatan: Idealnya pakai addHeaderView, tapi karena kita pakai adapter custom sederhana,
+            // kita bisa inflate header di layout XML parent atau gunakan GridLayoutManager dengan span size lookup.
+            // Untuk kesederhanaan dan stabilitas, kita akan update header ini secara terpisah 
+            // dan menampilkannya di atas list menggunakan FrameLayout stacking di XML.
+            // Tapi karena XML sudah punya FrameLayout wrapper, kita cukup update visibility & datanya.
+        }
+
         // === BARU: Setup Bottom Control Bar 5-Tombol ===
         mBottomControlBar = inflater.inflate(R.layout.bottom_control_bar, container, false);
         
@@ -259,6 +324,58 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         configureInput();
         return view;
+    }
+
+    // === METODE BARU: REFRESH SINGLE CHANNEL VIEW ===
+    private void refreshSingleChannelView() {
+        if (getService() == null || !getService().isConnected() || mSingleUserAdapter == null) return;
+        
+        try {
+            IHumlaSession session = getService().HumlaSession();
+            IChannel currentChannel = session.getSessionChannel();
+            
+            if (currentChannel == null) return;
+
+            // Update Header Info
+            if (mTvChannelName != null) mTvChannelName.setText(currentChannel.getName());
+            if (mTvChannelDesc != null) {
+                String desc = currentChannel.getDescription();
+                mTvChannelDesc.setText(desc != null ? desc : "");
+                mTvChannelDesc.setVisibility(desc != null && !desc.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+            
+            // Update User Count
+            int userCount = currentChannel.getUsers() != null ? currentChannel.getUsers().size() : 0;
+            if (mTvUserCount != null) mTvUserCount.setText("Online: " + userCount);
+            
+            // Update Latency & Bandwidth (Opsional, ambil dari service jika tersedia)
+            long tcpLatency = session.getTCPLatency();
+            if (mTvLatency != null) mTvLatency.setText("Latensi: " + tcpLatency + "ms");
+            
+            int currentBw = session.getCurrentBandwidth();
+            if (mTvBandwidth != null) {
+                // Format bandwidth jadi kb/s (dibagi 1000)
+                int bwKb = currentBw > 0 ? currentBw / 1000 : 0;
+                mTvBandwidth.setText("↑: " + bwKb + " kb ↓: " + bwKb + " kb");
+            }
+
+            // Update List User
+            List<IUser> users = currentChannel.getUsers();
+            if (users != null) {
+                // Sorting by Join Time (Urutan Server Default)
+                // Karena IUser tidak punya timestamp join eksplisit di interface standar,
+                // kita asumsikan urutan list dari server sudah sesuai waktu join.
+                // Jika ingin sort alphabet, uncomment baris bawah:
+                // users.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+                
+                mSingleUserAdapter.setUsers(new ArrayList<>(users));
+            } else {
+                mSingleUserAdapter.setUsers(new ArrayList<>());
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error refreshing single channel view", e);
+        }
     }
 
     // === METODE FINAL: LIST CHANNEL DENGAN REKURSI MURNI + JUMLAH USER ===
@@ -601,6 +718,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mTargetPanelCancel = null;
         mTargetPanelText = null;
         
+        // === BARU: Cleanup Single CH View ===
+        mSingleChContainer = null;
+        mRvUserList = null;
+        mSingleUserAdapter = null;
+        mHeaderSingleCh = null;
+        
         // === BARU: Cleanup Bottom Bar 5-Tombol ===
         mBottomControlBar = null;
         mBtnGlobalSet = null;
@@ -621,6 +744,17 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         if (service.getConnectionState() == HumlaService.ConnectionState.CONNECTED) {
             configureTargetPanel();
             configureInput();
+            
+            // AKTIFKAN SINGLE CH VIEW SAAT CONNECTED
+            if (mSingleChContainer != null) {
+                mSingleChContainer.setVisibility(View.VISIBLE);
+                refreshSingleChannelView();
+            }
+        } else {
+            // KEMBALIKAN KE TREE VIEW SAAT DISCONNECTED
+            if (mSingleChContainer != null) {
+                mSingleChContainer.setVisibility(View.GONE);
+            }
         }
     }
 
@@ -727,7 +861,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     }
 
     @Override
-    public void unregisterChatTargetListener(OnChatTargetSelectedListener listener) {
+    public void unregisterChatTargetSelectedListener(OnChatTargetSelectedListener listener) {
         mChatTargetListeners.remove(listener);
     }
 
