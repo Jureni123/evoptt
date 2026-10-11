@@ -26,7 +26,7 @@
         <ImageView
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:src="@drawable/ic_tune" <!-- Ganti dengan ikon settings/audio -->
+            android:src="@drawable/ic_action_audio" <!-- Ganti dengan ikon settings/audio -->
             app:tint="#FFFFFF" />
         <TextView
             android:layout_width="wrap_content"
@@ -61,7 +61,7 @@
         <ImageView
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:src="@drawable/ic_more_vert"
+            android:src="@drawable/ic_stat_notify"
             app:tint="#FFFFFF" />
         <TextView
             android:layout_width="wrap_content"
