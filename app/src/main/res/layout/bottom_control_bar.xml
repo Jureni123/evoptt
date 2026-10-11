@@ -9,7 +9,7 @@
     android:paddingEnd="16dp"
     android:paddingTop="8dp"
     android:paddingBottom="16dp"
-    android:background="#CC000000"> <!-- Hitam transparan agar menyatu dengan OLED -->
+    android:background="#CC000000">
 
     <!-- 1. TOMBOL KIRI: Audio & Input Menu -->
     <LinearLayout
