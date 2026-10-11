@@ -26,7 +26,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_menu_hamburger" 
+            android:src="@drawable/ic_action_settings" 
             app:tint="#FFFFFF" />
             
         <TextView
@@ -98,7 +98,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_action_list" 
+            android:src="@drawable/ic_registered" 
             app:tint="#FFFFFF" />
             
         <TextView
