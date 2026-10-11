@@ -33,7 +33,9 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.text.InputType;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -122,10 +124,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     private static final String TAG = MumlaActivity.class.getName();
 
     // --- AUTO-CONNECT LOGIC: KONFIGURASI SERVER ---
-    // GANTI DENGAN ALAMAT SERVER DAN PORT ASLIMU DI SINI
     private static final String EMBEDDED_SERVER_HOST = "ahmad.cleanvoice.ru";
-private static final int EMBEDDED_SERVER_PORT = 65202;
-private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
+    private static final int EMBEDDED_SERVER_PORT = 65202;
+    private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
     private static final String PREF_EMBEDDED_SETUP_DONE = "embedded_server_setup_done";
     
     private boolean mAutoConnectAttempted = false;
@@ -178,7 +179,7 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
             }
 
-            // --- AUTO-CONNECT LOGIC: CEK DAN CONNECT SETELAH SERVICE SIAP ---
+            // --- AUTO-CONNECT LOGIC: CEK DAN CONNECT SETELAH SERVICE SIAP (Untuk pembukaan berikutnya) ---
             if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
                 mAutoConnectAttempted = true;
                 
@@ -443,6 +444,14 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        // --- PENTING: Sembunyikan App Bar jika belum setup agar Welcome Screen Full Screen ---
+        boolean isEmbeddedSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
+                .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
+        if (!isEmbeddedSetupDone && getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
+        // ------------------------------------------------------------------------------------
+
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -524,9 +533,6 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
 
         if (savedInstanceState == null) {
             // --- MATIKAN DIALOG NATIVE FIRST-RUN JIKA KITA HANDLE SENDIRI ---
-            boolean isEmbeddedSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
-                    .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
-
             if (!isEmbeddedSetupDone) {
                 mSettings.setFirstRun(false); // Cegah dialog "Welcome to Mumla" muncul
             } else {
@@ -767,7 +773,9 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
                 .replace(R.id.content_frame, fragment, fragmentClass.getName())
                 .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
                 .commit();
-        requireNonNull(getSupportActionBar()).setTitle(mDrawerAdapter.getItemWithId(fragmentId).title);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(mDrawerAdapter.getItemWithId(fragmentId).title);
+        }
     }
 
     @Override
@@ -1057,7 +1065,9 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
         }
     }
 
-    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (DIPERBAIKI TOTAL) ---
+    // =========================================================================
+    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (LOGIKA BARU YANG LEBIH AMAN) ---
+    // =========================================================================
     
     private void showEmbeddedServerCredentialsDialog(final Server embedded) {
         int pad = (int) (getResources().getDisplayMetrics().density * 16.0f);
@@ -1136,10 +1146,29 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
                         .putBoolean(PREF_EMBEDDED_SETUP_DONE, true)
                         .apply();
                 
-                // 5. Terakhir: Connect! (Server dan Cert sudah 100% siap)
-                connectToServer(embedded);
+                // 5. PENTING: Tampilkan UI Favorites dulu, baru connect (agar user bisa klik manual jika gagal)
+                showAppBarAndLoadFavoritesAndConnect(embedded);
             }
         }.execute();
+    }
+
+    // Metode Jembatan: Memunculkan App Bar, Memuat Card Server, lalu Auto-Connect
+    public void showAppBarAndLoadFavoritesAndConnect(final Server server) {
+        // 1. Munculkan kembali App Bar
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().show();
+        }
+        
+        // 2. Muat ulang Fragment Favorites agar Card Server langsung terlihat di layar
+        loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
+        
+        // 3. Beri jeda sangat singkat (500ms) agar UI ter-render sempurna, baru lakukan auto-connect
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                connectToServer(server);
+            }
+        }, 500); 
     }
 
     private Server findOrCreateEmbeddedServer() {
@@ -1155,7 +1184,7 @@ private static final String EMBEDDED_SERVER_NAME = "SATU UNTUK SEMUA";
         // Buat objek saja di memori, JANGAN simpan ke DB dulu (mencegah data kosong)
         return new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
     }
-    // --------------------------------------------------------
+    // =========================================================================
 
     private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
 
