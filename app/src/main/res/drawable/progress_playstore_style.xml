@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 1. Track (Jalur Belakang) - Abu sangat gelap untuk OLED -->
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="4dp" /> <!-- Membulat -->
+            <solid android:color="#202020" />
+        </shape>
+    </item>
+
+    <!-- 2. Progress (Isi) - Google Blue yang sleek -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <corners android:radius="4dp" /> <!-- Membulat -->
+                <solid android:color="#8AB4F8" /> <!-- Google Blue -->
+            </shape>
+        </clip>
+    </item>
+</layer-list>
