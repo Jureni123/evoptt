@@ -18,22 +18,16 @@
 package se.lublin.mumla.servers;
 
 import android.content.Context;
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
-
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.List;
 
@@ -42,11 +36,10 @@ import se.lublin.mumla.R;
 import se.lublin.mumla.db.DatabaseProvider;
 
 /**
- * Displays a list of servers, and allows the user to connect and edit them.
- * @author morlunk
- *
+ * Displays a minimal, full-screen view of the favorite server for direct connection.
+ * Optimized for Mumla OLED secure & immersive experience.
  */
-public class FavouriteServerListFragment extends Fragment implements OnItemClickListener, FavouriteServerAdapter.FavouriteServerAdapterMenuListener {
+public class FavouriteServerListFragment extends Fragment implements AdapterView.OnItemClickListener {
 
     private ServerConnectHandler mConnectHandler;
     private DatabaseProvider mDatabaseProvider;
@@ -56,7 +49,8 @@ public class FavouriteServerListFragment extends Fragment implements OnItemClick
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
+        // Kita nonaktifkan menu options agar Top Bar benar-benar bersih
+        setHasOptionsMenu(false);
     }
 
     @Override
@@ -64,103 +58,82 @@ public class FavouriteServerListFragment extends Fragment implements OnItemClick
         super.onAttach(context);
 
         try {
-            mConnectHandler = (ServerConnectHandler)context;
-            mDatabaseProvider = (DatabaseProvider) context;
+            mConnectHandler = (ServerConnectHandler) context;
+            mDatabaseProvider = (DatabaseProvider) context
         } catch (ClassCastException e) {
-            throw new ClassCastException(context.toString()+" must implement ServerConnectHandler!");
+            throw new ClassCastException(context.toString() + " must implement ServerConnectHandler and DatabaseProvider!");
         }
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_server_list, container, false);
-        mServerGrid = (GridView) view.findViewById(R.id.server_list_grid);
+        
+        mServerGrid = view.findViewById(R.id.server_list_grid);
         mServerGrid.setOnItemClickListener(this);
         mServerGrid.setEmptyView(view.findViewById(R.id.server_list_grid_empty));
 
-        registerForContextMenu(mServerGrid);
+        // CATATAN: registerForContextMenu dihapus agar user tidak bisa long-press 
+        // untuk edit/delete server (Demi keamanan & tampilan minimalis)
+        
         return view;
-    }
-
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        super.onCreateOptionsMenu(menu, inflater);
-        inflater.inflate(R.menu.fragment_server_list, menu);
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        
+        // 1. SEMBUNYIKAN ACTION BAR untuk efek Full Screen Imersif (seperti Hello Live)
+        if (getActivity() instanceof AppCompatActivity) {
+            AppCompatActivity activity = (AppCompatActivity) getActivity();
+            if (activity.getSupportActionBar() != null) {
+                activity.getSupportActionBar().hide();
+            }
+        }
+        
+        // 2. Update daftar server
         updateServers();
-    }
+        }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int itemId = item.getItemId();
-        if (itemId == R.id.menu_add_server_item) {
-            addServer();
-            return true;
-        } else if (itemId == R.id.menu_quick_connect) {
-            ServerEditFragment.createServerEditDialog(null, ServerEditFragment.Action.CONNECT_ACTION, true)
-                    .show(getFragmentManager(), "serverInfo");
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    public void addServer() {
-        ServerEditFragment.createServerEditDialog(null, ServerEditFragment.Action.ADD_ACTION, false)
-                .show(getFragmentManager(), "serverInfo");
-    }
-
-    public void editServer(Server server) {
-        ServerEditFragment.createServerEditDialog(server, ServerEditFragment.Action.EDIT_ACTION, false)
-                .show(getFragmentManager(), "serverInfo");
-    }
-
-    public void shareServer(Server server) {
-        // Build Mumble server URL
-        String serverUrl = "mumble://" + server.getHost()
-            + (server.getPort() == 0 ? "" : ":" + server.getPort()) + "/";
-
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_SEND);
-        intent.putExtra(Intent.EXTRA_TEXT, getString(R.string.shareMessage, serverUrl));
-        intent.setType("text/plain");
-        startActivity(intent);
-    }
-
-    public void deleteServer(final Server server) {
-        new MaterialAlertDialogBuilder(requireContext())
-                .setMessage(R.string.confirm_delete_server)
-                .setPositiveButton(R.string.delete, (dialog, which) -> {
-                    mDatabaseProvider.getDatabase().removeServer(server);
-                    mServerAdapter.remove(server);
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+    public void onPause() {
+        super.onPause();
+        // Opsional: Munculkan kembali Action Bar saat pindah ke fragment lain
+        // Biarkan MumlaActivity yang menangani ini agar lebih aman
     }
 
     public void updateServers() {
         List<Server> servers = getServers();
-        mServerAdapter = new FavouriteServerAdapter(getActivity(), servers, this);
+        // Listener dilempar sebagai 'this', tapi karena menu dihapus, fungsinya tidak akan terpanggil
+        mServerAdapter = new FavouriteServerAdapter(getActivity(), servers, (FavouriteServerAdapter.FavouriteServerAdapterMenuListener) this);
         mServerGrid.setAdapter(mServerAdapter);
     }
 
-
-
     public List<Server> getServers() {
-        List<Server> servers = mDatabaseProvider.getDatabase().getServers();
-        return servers;
+        return mDatabaseProvider.getDatabase().getServers();
     }
 
     @Override
-    public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
-        mConnectHandler.connectToServer(mServerAdapter.getItem(arg2));
+    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+        // Langsung connect saat card ditekan, simpel dan cepat
+        Server selectedServer = mServerAdapter.getItem(position);
+        if (selectedServer != null) {
+            mConnectHandler.connectToServer(selectedServer);
+        }
     }
 
-    public static interface ServerConnectHandler {
-        public void connectToServer(Server server);
+    // Interface ini dipertahankan agar tidak error dengan FavouriteServerAdapter, 
+    // tapi method-nya dibiarkan kosong karena kita sudah menghapus menu edit/delete/share.
+    @Override
+    public void editServer(Server server) { }
+
+    @Override
+    public void shareServer(Server server) { }
+
+    @Override
+    public void deleteServer(Server server) { }
+
+    public interface ServerConnectHandler {
+        void connectToServer(Server server);
     }
 }
