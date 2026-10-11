@@ -265,16 +265,28 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         else if (Settings.ARRAY_INPUT_METHOD_PTT.equals(currentInput)) radioPtt.setChecked(true);
         else if (Settings.ARRAY_INPUT_METHOD_CONTINUOUS.equals(currentInput)) radioContinuous.setChecked(true);
 
-        // Listener Mute
+        // Listener Mute - PERBAIKAN: Gunakan setSelfMuteDeafState
         switchMute.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            try { getService().HumlaSession().setSelfMuted(isChecked); } 
-            catch (Exception e) { Log.e(TAG, "Mute error", e); }
+            try {
+                boolean currentDeaf = false;
+                IUser self = getService().HumlaSession().getSessionUser();
+                if (self != null) currentDeaf = self.isDeafened();
+                getService().HumlaSession().setSelfMuteDeafState(isChecked, currentDeaf);
+            } catch (Exception e) { 
+                Log.e(TAG, "Mute error", e); 
+            }
         });
 
-        // Listener Deafen
+        // Listener Deafen - PERBAIKAN: Gunakan setSelfMuteDeafState
         switchDeafen.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            try { getService().HumlaSession().setSelfDeafened(isChecked); } 
-            catch (Exception e) { Log.e(TAG, "Deafen error", e); }
+            try {
+                boolean currentMute = false;
+                IUser self = getService().HumlaSession().getSessionUser();
+                if (self != null) currentMute = self.isSelfMuted() || self.isMuted();
+                getService().HumlaSession().setSelfMuteDeafState(currentMute, isChecked);
+            } catch (Exception e) { 
+                Log.e(TAG, "Deafen error", e); 
+            }
         });
 
         // Listener Input Mode
