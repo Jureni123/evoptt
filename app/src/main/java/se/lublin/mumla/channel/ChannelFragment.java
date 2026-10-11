@@ -247,7 +247,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
         }
 
-        // 3. Tombol List CH - MENAMPILKAN DIALOG LIST CHANNEL
+        // 3. Tombol List CH - MENAMPILKAN DIALOG LIST CHANNEL (VERSI REKURSIF AMAN)
         if (mBtnListCh != null) {
             mBtnListCh.setOnClickListener(v -> showChannelListDialog());
         }
@@ -261,7 +261,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         return view;
     }
 
-    // === METODE BARU: MENAMPILKAN DIALOG LIST CHANNEL ===
+    // === METODE FINAL: LIST CHANNEL DENGAN REKURSI MURNI (TANPA GETCHANNELS) ===
     private void showChannelListDialog() {
         if (getService() == null || !getService().isConnected()) {
             Toast.makeText(requireContext(), "Belum terhubung ke server", Toast.LENGTH_SHORT).show();
@@ -270,19 +270,28 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         
         try {
             IHumlaSession session = getService().HumlaSession();
-            List<IChannel> channels = session.getChannels();
+            IChannel root = session.getRootChannel();
             
-            if (channels == null || channels.isEmpty()) {
+            if (root == null) {
+                Toast.makeText(requireContext(), "Data channel belum siap", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Kumpulkan semua channel secara rekursif
+            List<IChannel> allChannels = new ArrayList<>();
+            collectAllChannels(root, allChannels);
+            
+            if (allChannels.isEmpty()) {
                 Toast.makeText(requireContext(), "Tidak ada channel tersedia", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Siapkan array nama dan ID channel
-            String[] channelNames = new String[channels.size()];
-            int[] channelIds = new int[channels.size()];
+            // Siapkan array untuk dialog
+            String[] channelNames = new String[allChannels.size()];
+            int[] channelIds = new int[allChannels.size()];
             
-            for (int i = 0; i < channels.size(); i++) {
-                IChannel ch = channels.get(i);
+            for (int i = 0; i < allChannels.size(); i++) {
+                IChannel ch = allChannels.get(i);
                 channelNames[i] = ch.getName();
                 channelIds[i] = ch.getId();
             }
@@ -292,18 +301,35 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 .setTitle("Pilih Channel")
                 .setItems(channelNames, (dialog, which) -> {
                     int targetId = channelIds[which];
-                    String targetName = channelNames[which];
-                    
-                    // Join channel yang dipilih
                     session.joinChannel(targetId);
-                    Toast.makeText(requireContext(), "Pindah ke " + targetName, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), 
+                        "Bergabung ke: " + channelNames[which], 
+                        Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Batal", null)
                 .show();
                 
         } catch (Exception e) {
-            Log.e(TAG, "Error getting channels", e);
-            Toast.makeText(requireContext(), "Gagal memuat daftar channel", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error showing channel list", e);
+            Toast.makeText(requireContext(), 
+                "Gagal memuat daftar channel", 
+                Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Helper rekursif untuk mengambil semua sub-channel
+    private void collectAllChannels(IChannel parent, List<IChannel> result) {
+        if (parent == null) return;
+        
+        // Tambahkan parent ke hasil
+        result.add(parent);
+        
+        // Ambil semua sub-channel dan proses satu per satu
+        List<? extends IChannel> subs = parent.getSubchannels();
+        if (subs != null) {
+            for (IChannel sub : subs) {
+                collectAllChannels(sub, result);
+            }
         }
     }
 
