@@ -234,7 +234,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         return view;
     }
 
-    // === BARU: Metode untuk menampilkan Bottom Sheet Audio ===
+ // === METODE SHOW AUDIO BOTTOM SHEET (VERSI LENGKAP 6 MODE - AMAN) ===
     private void showAudioBottomSheet() {
         if (getService() == null || !getService().isConnected() || !isAdded()) return;
 
@@ -242,69 +242,98 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_audio, null);
         bottomSheet.setContentView(sheetView);
 
+        // 1. Setup Switch Mute & Deafen (Zona Aman - Tidak Diubah)
         SwitchCompat switchMute = sheetView.findViewById(R.id.switch_mute);
         SwitchCompat switchDeafen = sheetView.findViewById(R.id.switch_deafen);
-        RadioGroup radioInputMode = sheetView.findViewById(R.id.radio_input_mode);
-        RadioButton radioVox = sheetView.findViewById(R.id.radio_vox);
-        RadioButton radioPtt = sheetView.findViewById(R.id.radio_ptt);
-        RadioButton radioContinuous = sheetView.findViewById(R.id.radio_continuous);
-
+        
         try {
             IUser self = getService().HumlaSession().getSessionUser();
             if (self != null) {
                 switchMute.setChecked(self.isSelfMuted() || self.isMuted());
                 switchDeafen.setChecked(self.isDeafened());
             }
-        } catch (Exception e) {
-            Log.d(TAG, "Error getting user state: " + e);
-        }
+        } catch (Exception e) { Log.d(TAG, "Error getting user state: " + e); }
 
-        Settings settings = Settings.getInstance(requireContext());
-        String currentInput = settings.getInputMethod();
-        if (Settings.ARRAY_INPUT_METHOD_VOICE.equals(currentInput)) radioVox.setChecked(true);
-        else if (Settings.ARRAY_INPUT_METHOD_PTT.equals(currentInput)) radioPtt.setChecked(true);
-        else if (Settings.ARRAY_INPUT_METHOD_CONTINUOUS.equals(currentInput)) radioContinuous.setChecked(true);
-
-        // Listener Mute - PERBAIKAN: Gunakan setSelfMuteDeafState
         switchMute.setOnCheckedChangeListener((buttonView, isChecked) -> {
             try {
                 boolean currentDeaf = false;
                 IUser self = getService().HumlaSession().getSessionUser();
                 if (self != null) currentDeaf = self.isDeafened();
                 getService().HumlaSession().setSelfMuteDeafState(isChecked, currentDeaf);
-            } catch (Exception e) { 
-                Log.e(TAG, "Mute error", e); 
-            }
+            } catch (Exception e) { Log.e(TAG, "Mute error", e); }
         });
 
-        // Listener Deafen - PERBAIKAN: Gunakan setSelfMuteDeafState
         switchDeafen.setOnCheckedChangeListener((buttonView, isChecked) -> {
             try {
                 boolean currentMute = false;
                 IUser self = getService().HumlaSession().getSessionUser();
                 if (self != null) currentMute = self.isSelfMuted() || self.isMuted();
                 getService().HumlaSession().setSelfMuteDeafState(currentMute, isChecked);
-            } catch (Exception e) { 
-                Log.e(TAG, "Deafen error", e); 
-            }
+            } catch (Exception e) { Log.e(TAG, "Deafen error", e); }
         });
 
-        // Listener Input Mode
-        radioInputMode.setOnCheckedChangeListener((group, checkedId) -> {
+        // 2. Setup RadioGroup Transmit Mode (6 Opsi Baru Sesuai XML)
+        RadioGroup radioGroup = sheetView.findViewById(R.id.radio_input_mode);
+        RadioButton radioVox = sheetView.findViewById(R.id.radio_vox);
+        RadioButton radioPttHold = sheetView.findViewById(R.id.radio_ptt);
+        RadioButton radioPttSticky = sheetView.findViewById(R.id.radio_ptt_sticky);
+        RadioButton radioHeadset = sheetView.findViewById(R.id.radio_headset);
+        RadioButton radioBluetooth = sheetView.findViewById(R.id.radio_bluetooth);
+        RadioButton radioContinuous = sheetView.findViewById(R.id.radio_continuous);
+
+        Settings settings = Settings.getInstance(requireContext());
+        String currentMethod = settings.getInputMethod();
+        boolean isSticky = settings.isPushToTalkToggle();
+        boolean isBT = settings.isBluetoothHeadset();
+
+        // LOGIKA LOAD STATUS: Menentukan radio button mana yang aktif saat dibuka
+        if (currentMethod.equals(Settings.ARRAY_INPUT_METHOD_VOICE)) {
+            radioVox.setChecked(true);
+        } else if (currentMethod.equals(Settings.ARRAY_INPUT_METHOD_CONTINUOUS)) {
+            radioContinuous.setChecked(true);
+        } else if (currentMethod.equals(Settings.ARRAY_INPUT_METHOD_PTT)) {
+            // Jika mode PTT, cek modifier-nya (Sticky / BT / Hold)
+            if (isBT) {
+                radioBluetooth.setChecked(true);
+            } else if (isSticky) {
+                radioPttSticky.setChecked(true);
+            } else {
+                radioPttHold.setChecked(true);
+            }
+        }
+
+        // LOGIKA PERUBAHAN: Saat user memilih opsi baru
+        radioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (checkedId == R.id.radio_vox) {
                 settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_VOICE);
-            } else if (checkedId == R.id.radio_ptt) {
-                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_PTT);
             } else if (checkedId == R.id.radio_continuous) {
                 settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_CONTINUOUS);
+            } else if (checkedId == R.id.radio_ptt) { // PTT Tekan Terus (Hold)
+                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_PTT);
+                settings.setPushToTalkToggle(false); 
+                settings.setBluetoothHeadset(false);
+            } else if (checkedId == R.id.radio_ptt_sticky) { // Sticky / Toggle
+                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_PTT);
+                settings.setPushToTalkToggle(true);
+                settings.setBluetoothHeadset(false);
+            } else if (checkedId == R.id.radio_headset) { // Tombol Headset Fisik
+                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_PTT);
+                settings.setPushToTalkToggle(false); 
+                settings.setBluetoothHeadset(false);
+                Toast.makeText(requireContext(), "Siapkan tombol headset fisik", Toast.LENGTH_SHORT).show();
+            } else if (checkedId == R.id.radio_bluetooth) { // Bluetooth PTT
+                settings.setInputMethod(Settings.ARRAY_INPUT_METHOD_PTT);
+                settings.setPushToTalkToggle(true); // Auto-toggle karena tombol BT sifatnya click
+                settings.setBluetoothHeadset(true);
+                Toast.makeText(requireContext(), "Mode Bluetooth PTT Aktif", Toast.LENGTH_SHORT).show();
             }
-            configureInput(); // Refresh tampilan PTT button
+            
+            configureInput(); // Refresh UI tombol PTT di layar channel
             bottomSheet.dismiss();
         });
 
         bottomSheet.show();
     }
-
     // === BARU: Metode untuk menampilkan Session Menu (Tombol Kanan) ===
     private void showSessionMenu() {
         if (!isAdded()) return;
