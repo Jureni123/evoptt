@@ -88,10 +88,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     /** Chat target listeners, notified when the chat target is changed. */
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<OnChatTargetSelectedListener>();
 
-    // === BARU: Variabel untuk Bottom Control Bar ===
+    // === BARU: Variabel untuk Bottom Control Bar 5-Tombol ===
     private View mBottomControlBar;
-    private View mBtnAudioMenu;
-    private View mBtnSessionMenu;
+    private View mBtnGlobalSet;      // Tombol Kiri: Drawer Settings
+    private View mBtnAudioMenu;      // Tombol Audio
+    private View mBtnSessionMenu;    // Tombol Kanan: Session Menu
+    private View mBtnListCh;         // Tombol Baru: List Channel
     private FrameLayout mPttContainer;
 
     private HumlaObserver mObserver = new HumlaObserver() {
@@ -200,11 +202,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         });
         mTargetPanelText = view.findViewById(R.id.target_panel_warning);
 
-        // === BARU: Setup Bottom Control Bar ===
+        // === BARU: Setup Bottom Control Bar 5-Tombol ===
         mBottomControlBar = inflater.inflate(R.layout.bottom_control_bar, container, false);
+        
+        // Inisialisasi SEMUA tombol dari XML baru
+        mBtnGlobalSet = mBottomControlBar.findViewById(R.id.btn_global_set);
         mBtnAudioMenu = mBottomControlBar.findViewById(R.id.btn_audio_menu);
-        mBtnSessionMenu = mBottomControlBar.findViewById(R.id.btn_session_menu);
         mPttContainer = mBottomControlBar.findViewById(R.id.ptt_container);
+        mBtnListCh = mBottomControlBar.findViewById(R.id.btn_list_ch);
+        mBtnSessionMenu = mBottomControlBar.findViewById(R.id.btn_session_menu);
 
         // Pindahkan mTalkView (PTT asli) ke dalam container tengah di Bottom Bar
         if (mTalkView != null && mTalkView.getParent() != null) {
@@ -224,16 +230,39 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             ((ViewGroup) view).addView(mBottomControlBar, params);
         }
 
-        // Setup Klik Tombol Kiri (Audio Menu)
-        mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
+        // === SETUP LISTENER UNTUK KE-5 TOMBOL ===
+        
+        // 1. Tombol Global Set (Drawer) - SEMENTARA TOAST DULU
+        if (mBtnGlobalSet != null) {
+            mBtnGlobalSet.setOnClickListener(v -> {
+                Toast.makeText(requireContext(), "Tombol Global Set diklik", Toast.LENGTH_SHORT).show();
+                // NANTI: ((MumlaActivity)getActivity()).openDrawer();
+            });
+        }
 
-        // === PERUBAHAN: Setup Klik Tombol Kanan (Session Menu) ===
-        mBtnSessionMenu.setOnClickListener(v -> showSessionMenu());
+        // 2. Tombol Audio Menu
+        if (mBtnAudioMenu != null) {
+            mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
+        }
+
+        // 3. Tombol List CH - SEMENTARA TOAST DULU
+        if (mBtnListCh != null) {
+            mBtnListCh.setOnClickListener(v -> {
+                Toast.makeText(requireContext(), "Tombol List CH diklik", Toast.LENGTH_SHORT).show();
+                // NANTI: Tampilkan dialog list channel
+            });
+        }
+
+        // 4. Tombol Session Menu
+        if (mBtnSessionMenu != null) {
+            mBtnSessionMenu.setOnClickListener(v -> showSessionMenu());
+        }
 
         configureInput();
         return view;
     }
-// === METODE SHOW AUDIO BOTTOM SHEET (VERSI PERBAIKAN - TANPA SETTER) ===
+
+    // === METODE SHOW AUDIO BOTTOM SHEET (VERSI PERBAIKAN - TANPA SETTER) ===
     private void showAudioBottomSheet() {
         if (getService() == null || !getService().isConnected() || !isAdded()) return;
 
@@ -339,7 +368,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         bottomSheet.show();
     }
     
-    // === BARU: Metode untuk menampilkan Session Menu (Tombol Kanan) ===
+    // === METODE UNTUK MENAMPILKAN SESSION MENU (TOMBOL KANAN) ===
     private void showSessionMenu() {
         if (!isAdded()) return;
 
@@ -347,7 +376,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_session_menu, null);
         bottomSheet.setContentView(sheetView);
 
-        // 1. Tombol Toggle Overlay - LANGSUNG PANGGIL SERVICE YANG SUDAH ADA
+        // 1. Tombol Toggle Overlay
         View btnToggleOverlay = sheetView.findViewById(R.id.btn_toggle_overlay);
         btnToggleOverlay.setOnClickListener(v -> {
             if (getService() instanceof MumlaService) {
@@ -360,18 +389,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             bottomSheet.dismiss();
         });
 
-        // 2. Tombol Refresh Channel - PERBAIKAN CASTING DI SINI
+        // 2. Tombol Refresh Channel
         View btnRefreshChannel = sheetView.findViewById(R.id.btn_refresh_channel);
         btnRefreshChannel.setOnClickListener(v -> {
-            // Casting ke HumlaService agar bisa akses getSessionChannel()
             if (getService() instanceof HumlaService) {
                 HumlaService humlaService = (HumlaService) getService();
                 
                 if (humlaService.isConnected()) {
                     try {
-                        // Ambil channel saat ini lewat HumlaService
                         int channelId = humlaService.getSessionChannel().getId();
-                        // Request permission/update data untuk channel tersebut
                         humlaService.requestPermissions(channelId);
                         Toast.makeText(requireContext(), "Memuat ulang channel...", Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
@@ -492,9 +518,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mTargetPanel = null;
         mTargetPanelCancel = null;
         mTargetPanelText = null;
-        // === BARU: Cleanup Bottom Bar ===
+        
+        // === BARU: Cleanup Bottom Bar 5-Tombol ===
         mBottomControlBar = null;
+        mBtnGlobalSet = null;
         mBtnAudioMenu = null;
+        mBtnListCh = null;
         mBtnSessionMenu = null;
         mPttContainer = null;
     }
