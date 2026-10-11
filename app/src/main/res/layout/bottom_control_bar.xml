@@ -5,17 +5,45 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical|center_horizontal"
-    android:paddingStart="8dp"
-    android:paddingEnd="8dp"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
     android:paddingTop="8dp"
     android:paddingBottom="12dp"
     android:background="#CC000000">
 
-    <!-- 1. TOMBOL KIRI: Audio Menu (Dikecilkan) -->
+    <!-- 1. TOMBOL GLOBAL SET (Drawer) -->
+    <LinearLayout
+        android:id="@+id/btn_global_set"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="?selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_menu_hamburger" 
+            app:tint="#FFFFFF" />
+            
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Set"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- 2. TOMBOL AUDIO MENU -->
     <LinearLayout
         android:id="@+id/btn_audio_menu"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:orientation="vertical"
         android:gravity="center"
         android:background="?selectableItemBackgroundBorderless"
@@ -37,23 +65,17 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- Spacer Kiri agar PTT benar-benar tengah -->
-    <View
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-    <!-- 2. TOMBOL TENGAH: PTT Container (Lebar Diperkecil, Tinggi Ditambah) -->
+    <!-- 3. TOMBOL TENGAH: PTT Container (Lebar Diperkecil, Tinggi Ditambah) -->
     <FrameLayout
         android:id="@+id/ptt_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:minWidth="120dp"
+        android:minWidth="110dp"
         android:minHeight="56dp"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
         android:gravity="center"
-        android:background="@drawable/bg_ptt_button_transparent" 
+        android:background="#33FFFFFF" 
         android:clickable="true"
         android:focusable="true">
         
@@ -61,17 +83,39 @@
         
     </FrameLayout>
 
-    <!-- Spacer Kanan agar PTT benar-benar tengah -->
-    <View
+    <!-- 4. TOMBOL LIST CH (Navigasi Channel) -->
+    <LinearLayout
+        android:id="@+id/btn_list_ch"
         android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="?selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
 
-    <!-- 3. TOMBOL KANAN: Session Menu (Dikecilkan) -->
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_action_list" 
+            app:tint="#FFFFFF" />
+            
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="List CH"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+
+    <!-- 5. TOMBOL SESSION MENU -->
     <LinearLayout
         android:id="@+id/btn_session_menu"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:orientation="vertical"
         android:gravity="center"
         android:background="?selectableItemBackgroundBorderless"
