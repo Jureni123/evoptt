@@ -65,7 +65,7 @@ import se.lublin.humla.util.VoiceTargetMode;
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
 import se.lublin.mumla.app.MumlaActivity;
-import se.lublin.mumla.service.MumlaService; // Import service untuk akses metode overlay/disconnect
+import se.lublin.mumla.service.MumlaService; 
 import se.lublin.mumla.util.HumlaServiceFragment;
 
 /**
@@ -326,19 +326,27 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             bottomSheet.dismiss();
         });
 
-        // 2. Tombol Refresh Channel
+        // 2. Tombol Refresh Channel - PERBAIKAN CASTING DI SINI
         View btnRefreshChannel = sheetView.findViewById(R.id.btn_refresh_channel);
         btnRefreshChannel.setOnClickListener(v -> {
-            if (getService() != null && getService().isConnected()) {
-                try {
-                    // Request ulang data channel dari server
-                    getService().HumlaSession().requestPermissions(getService().getSessionChannel().getId());
-                    Toast.makeText(requireContext(), "Memuat ulang channel...", Toast.LENGTH_SHORT).show();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error refresh channel", e);
+            // Casting ke HumlaService agar bisa akses getSessionChannel()
+            if (getService() instanceof HumlaService) {
+                HumlaService humlaService = (HumlaService) getService();
+                
+                if (humlaService.isConnected()) {
+                    try {
+                        // Ambil channel saat ini lewat HumlaService
+                        int channelId = humlaService.getSessionChannel().getId();
+                        // Request permission/update data untuk channel tersebut
+                        humlaService.requestPermissions(channelId);
+                        Toast.makeText(requireContext(), "Memuat ulang channel...", Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error refresh channel", e);
+                        Toast.makeText(requireContext(), "Gagal memuat ulang", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "Belum terhubung ke server", Toast.LENGTH_SHORT).show();
                 }
-            } else {
-                Toast.makeText(requireContext(), "Belum terhubung", Toast.LENGTH_SHORT).show();
             }
             bottomSheet.dismiss();
         });
