@@ -1,168 +1,113 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  ~ Copyright (C) 2014 Andrew Comminos
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU General Public License
-  ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
-  -->
-
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_margin="12dp"
     android:foreground="?selectableItemBackground"
-    style="?cardStyle">
-<RelativeLayout
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    tools:ignore="NewApi">
+    app:cardCornerRadius="20dp"
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="#121212"> <!-- True Black / Dark Gray untuk OLED -->
 
     <LinearLayout
-        android:id="@+id/server_card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical" >
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <LinearLayout
+        <!-- 1. AREA LOGO / COVER ART BESAR (Seperti Album Art) -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_server_placeholder"> <!-- Lihat instruksi di bawah untuk file ini -->
+            
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_server_light"
+                app:tint="#8AB4F8" /> <!-- Google Blue agar pop-up di OLED -->
+        </FrameLayout>
+
+        <!-- 2. NAMA SERVER (Judul Besar, Tengah) -->
+        <TextView
+            android:id="@+id/server_row_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingBottom="18dp"
-            android:paddingLeft="18dp"
-            android:paddingRight="18dp"
-            android:paddingTop="10dp" >
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:maxLines="2"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" />
 
-            <TextView
-                android:id="@+id/server_row_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif-light"
-                android:gravity="left|center_vertical"
-                android:lines="1"
-                android:text="@string/server_host"
-                android:textColor="?android:textColorSecondary"
-                android:textSize="19sp" />
+        <!-- 3. STATUS (Online/Offline) - Repurpose dari version_status -->
+        <TextView
+            android:id="@+id/server_row_version_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="8dp"
+            android:drawablePadding="6dp"
+            android:fontFamily="sans-serif"
+            android:text="● Online"
+            android:textColor="#81C995" <!-- Google Green -->
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
-            <RelativeLayout
-                android:id="@+id/server_row_info"
-                android:layout_width="match_parent"
-                android:layout_height="30dp"
-                android:paddingBottom="2dp" >
+        <!-- ======================================================= -->
+        <!-- AREA PRIVASI: ID TETAP ADA, TAPI DISEMBUNYIKAN (GONE)   -->
+        <!-- Adapter tetap bisa inject data, tapi user tidak lihat   -->
+        <!-- ======================================================= -->
+        <TextView
+            android:id="@+id/server_row_address"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/server_row_version_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:fontFamily="sans-serif-light"
-                    android:gravity="center_vertical"
-                    android:textColor="?android:textColorSecondary"
-                    android:text="Version status"
-                    android:layout_alignParentLeft="true"/>
+        <TextView
+            android:id="@+id/server_row_usercount"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/server_row_usercount"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:ellipsize="marquee"
-                    android:focusable="false"
-                    android:fontFamily="sans-serif-light"
-                    android:gravity="center_vertical"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:scrollHorizontally="true"
-                    android:singleLine="true"
-                    android:textColor="?android:textColorSecondary"
-                    android:layout_toRightOf="@id/server_row_version_status"
-                    android:layout_marginLeft="8dp"
-                    android:text="15/100" />
+        <TextView
+            android:id="@+id/server_row_user"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/server_row_latency"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:fontFamily="sans-serif-light"
-                    android:textColor="?android:textColorSecondary"
-                    android:text="100ms"
-                    android:gravity="center_vertical"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentRight="true"/>
+        <TextView
+            android:id="@+id/server_row_latency"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
-                <ProgressBar
-                    android:id="@+id/server_row_ping_progress"
-                    style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_centerInParent="true"
-                    android:visibility="invisible"
-                    android:indeterminate="true" />
-            </RelativeLayout>
+        <!-- 4. PROGRESS BAR KEREN (Gaya Google Play Store) -->
+        <ProgressBar
+            android:id="@+id/server_row_ping_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginHorizontal="8dp"
+            android:progressDrawable="@drawable/progress_playstore_style"
+            android:indeterminate="true"
+            android:visibility="invisible" /> <!-- Tetap invisible, akan di-trigger adapter saat ping -->
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="left|center_vertical"
-                android:paddingBottom="4dp" >
+        <!-- 5. TOMBOL OVERFLOW (Edit/Delete) di Pojok Kanan Atas -->
+        <ImageView
+            android:id="@+id/server_row_more"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="end"
+            android:layout_marginTop="-220dp" <!-- Menariknya ke atas menumpuk di area cover -->
+            android:background="?selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:src="@drawable/ic_card_overflow"
+            app:tint="#B0B0B0" />
 
-                <ImageView
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:layout_marginRight="5dp"
-                    app:srcCompat="@drawable/ic_user_light"
-                    app:tint="?android:attr/textColorPrimary" />
-
-                <TextView
-                    android:id="@+id/server_row_user"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="?android:textColorSecondary"
-                    android:text="@string/server_username"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="left|center_vertical" >
-
-                <ImageView
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:layout_marginRight="5dp"
-                    app:srcCompat="@drawable/ic_server_light"
-                    app:tint="?android:attr/textColorPrimary" />
-
-                <TextView
-                    android:id="@+id/server_row_address"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="?android:textColorSecondary"
-                    android:text="@string/server_host"/>
-            </LinearLayout>
-        </LinearLayout>
     </LinearLayout>
-
-    <!-- We can't have a focusable element in a GridView item -->
-
-    <ImageView
-        android:id="@+id/server_row_more"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingRight="8dp"
-        android:paddingTop="4dp"
-        android:layout_alignTop="@id/server_card"
-        android:layout_alignRight="@id/server_card"
-        app:srcCompat="@drawable/ic_card_overflow" />
-
-</RelativeLayout>
 </androidx.cardview.widget.CardView>
