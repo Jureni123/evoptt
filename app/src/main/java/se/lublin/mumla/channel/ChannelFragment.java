@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View Integration
+ * Modified for Mumla OLED Single Channel View Integration Modifed By Jureni123 2026
  */
 package se.lublin.mumla.channel;
 
