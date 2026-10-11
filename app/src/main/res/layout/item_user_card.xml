@@ -71,7 +71,7 @@
         android:id="@+id/img_more_options"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:src="@drawable/ic_action_overflow"
+        android:src="@drawable/ic_action_drag_handle"
         android:tint="#888888"
         android:background="?selectableItemBackgroundBorderless"
         android:clickable="true"
