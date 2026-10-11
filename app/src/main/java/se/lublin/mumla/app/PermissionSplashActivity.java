@@ -56,8 +56,8 @@ public class PermissionSplashActivity extends AppCompatActivity {
     private static final int REQ_CODE_STANDARD = 200;
     private static final int REQ_CODE_OVERLAY = 201;
 
-    // ✅ HARDKODE NAMA PAKET SESUAI PROPERTI APK
-    // Ini memastikan "GPS" selalu menunjuk ke Mumla OLED, bukan aplikasi lain
+    // ✅ HARDKODE NAMA PAKET SESUAI PROPERTI APK & BUILD.GRADLE
+    // Ini memastikan "GPS" selalu menunjuk ke Mumla OLED Debug/Release, bukan aplikasi lain
     private static final String TARGET_PACKAGE_NAME = "se.lublin.mumla.oled15";
 
     // ✅ DAFTAR IZIN STANDAR (Mic & Storage)
