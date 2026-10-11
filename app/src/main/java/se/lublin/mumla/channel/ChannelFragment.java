@@ -55,6 +55,7 @@ import java.util.List;
 import se.lublin.humla.HumlaService;
 import se.lublin.humla.IHumlaService;
 import se.lublin.humla.IHumlaSession;
+import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.TalkState;
 import se.lublin.humla.model.WhisperTarget;
@@ -232,11 +233,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         // === SETUP LISTENER UNTUK KE-5 TOMBOL ===
         
-        // 1. Tombol Global Set (Drawer) - SEMENTARA TOAST DULU
+        // 1. Tombol Global Set (Drawer) - LANGSUNG BUKA DRAWER
         if (mBtnGlobalSet != null) {
             mBtnGlobalSet.setOnClickListener(v -> {
-                Toast.makeText(requireContext(), "Tombol Global Set diklik", Toast.LENGTH_SHORT).show();
-                // NANTI: ((MumlaActivity)getActivity()).openDrawer();
+                if (getActivity() instanceof MumlaActivity) {
+                    ((MumlaActivity) getActivity()).openNavigationDrawer();
+                }
             });
         }
 
@@ -245,12 +247,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mBtnAudioMenu.setOnClickListener(v -> showAudioBottomSheet());
         }
 
-        // 3. Tombol List CH - SEMENTARA TOAST DULU
+        // 3. Tombol List CH - MENAMPILKAN DIALOG LIST CHANNEL
         if (mBtnListCh != null) {
-            mBtnListCh.setOnClickListener(v -> {
-                Toast.makeText(requireContext(), "Tombol List CH diklik", Toast.LENGTH_SHORT).show();
-                // NANTI: Tampilkan dialog list channel
-            });
+            mBtnListCh.setOnClickListener(v -> showChannelListDialog());
         }
 
         // 4. Tombol Session Menu
@@ -260,6 +259,52 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         configureInput();
         return view;
+    }
+
+    // === METODE BARU: MENAMPILKAN DIALOG LIST CHANNEL ===
+    private void showChannelListDialog() {
+        if (getService() == null || !getService().isConnected()) {
+            Toast.makeText(requireContext(), "Belum terhubung ke server", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        try {
+            IHumlaSession session = getService().HumlaSession();
+            List<IChannel> channels = session.getChannels();
+            
+            if (channels == null || channels.isEmpty()) {
+                Toast.makeText(requireContext(), "Tidak ada channel tersedia", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Siapkan array nama dan ID channel
+            String[] channelNames = new String[channels.size()];
+            int[] channelIds = new int[channels.size()];
+            
+            for (int i = 0; i < channels.size(); i++) {
+                IChannel ch = channels.get(i);
+                channelNames[i] = ch.getName();
+                channelIds[i] = ch.getId();
+            }
+            
+            // Tampilkan dialog list sederhana
+            new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Pilih Channel")
+                .setItems(channelNames, (dialog, which) -> {
+                    int targetId = channelIds[which];
+                    String targetName = channelNames[which];
+                    
+                    // Join channel yang dipilih
+                    session.joinChannel(targetId);
+                    Toast.makeText(requireContext(), "Pindah ke " + targetName, Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Batal", null)
+                .show();
+                
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting channels", e);
+            Toast.makeText(requireContext(), "Gagal memuat daftar channel", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // === METODE SHOW AUDIO BOTTOM SHEET (VERSI PERBAIKAN - TANPA SETTER) ===
