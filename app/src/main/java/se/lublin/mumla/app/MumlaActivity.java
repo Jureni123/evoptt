@@ -38,6 +38,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.text.InputType;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -59,6 +60,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
@@ -179,7 +181,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
             }
 
-            // --- AUTO-CONNECT LOGIC: CEK DAN CONNECT SETELAH SERVICE SIAP (Untuk pembukaan berikutnya) ---
+            // --- AUTO-CONNECT LOGIC: CEK DAN CONNECT SETELAH SERVICE SIAP ---
             if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
                 mAutoConnectAttempted = true;
                 
@@ -1183,6 +1185,19 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         
         // Buat objek saja di memori, JANGAN simpan ke DB dulu (mencegah data kosong)
         return new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
+    }
+
+    // =========================================================================
+    // === PUBLIC METHOD UNTUK MEMBUKA DRAWER DARI FRAGMENT (BARU!) ===
+    // =========================================================================
+    /**
+     * Membuka Navigation Drawer dari Fragment manapun.
+     * Aman dipanggil karena melakukan null check pada mDrawerLayout.
+     */
+    public void openNavigationDrawer() {
+        if (mDrawerLayout != null) {
+            mDrawerLayout.openDrawer(GravityCompat.START);
+        }
     }
     // =========================================================================
 
