@@ -1,59 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_margin="12dp"
-    android:foreground="?selectableItemBackground"
-    app:cardCornerRadius="20dp"
-    app:cardElevation="4dp"
-    app:cardBackgroundColor="#121212">
+    android:layout_height="match_parent"
+    android:background="#000000">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:gravity="center_horizontal"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp">
 
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="160dp"
-            android:layout_marginBottom="16dp"
-            android:background="@drawable/bg_server_placeholder">
-            
-            <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_server_light"
-                app:tint="#8AB4F8" />
-        </FrameLayout>
+        <!-- 1. LOGO BESAR DI ATAS -->
+        <ImageView
+            android:layout_width="180dp"
+            android:layout_height="180dp"
+            android:layout_marginTop="80dp"
+            android:src="@drawable/ic_server_light"
+            app:tint="#FFFFFF" />
 
+        <!-- 2. NAMA SERVER (JUDUL BESAR) -->
         <TextView
             android:id="@+id/server_row_name"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center"
-            android:maxLines="2"
+            android:layout_marginTop="40dp"
+            android:text="SATU UNTUK SEMUA"
             android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-black"
+            android:gravity="center" />
 
+        <!-- 3. STATUS KECIL DI BAWAH JUDUL -->
         <TextView
             android:id="@+id/server_row_version_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginTop="8dp"
-            android:drawablePadding="6dp"
-            android:fontFamily="sans-serif"
-            android:text="● Online"
-            android:textColor="#81C995"
-            android:textSize="14sp"
+            android:layout_marginTop="12dp"
+            android:text="Online"
+            android:textColor="#888888"
+            android:textSize="16sp" />
+
+        <!-- Spacer agar tombol terdorong ke bawah -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 4. TOMBOL GABUNG BESAR (VISUAL) -->
+        <!-- Catatan: Klik tetap ditangani oleh GridView, ini hanya visual -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginBottom="60dp"
+            android:background="@drawable/bg_button_gabung"
+            android:gravity="center"
+            android:text="GABUNG"
+            android:textColor="#000000"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
+        <!-- ======================================================= -->
+        <!-- AREA PRIVASI: ID TETAP ADA, TAPI DISEMBUNYIKAN (GONE)   -->
+        <!-- Adapter tetap bisa inject data, tapi user tidak lihat   -->
+        <!-- ======================================================= -->
         <TextView
             android:id="@+id/server_row_address"
             android:layout_width="0dp"
@@ -78,7 +91,7 @@
             android:layout_height="0dp"
             android:visibility="gone" />
 
-        <ProgressBar
+               <ProgressBar
             android:id="@+id/server_row_ping_progress"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
@@ -88,17 +101,11 @@
             android:progressDrawable="@drawable/progress_playstore_style"
             android:indeterminate="true"
             android:visibility="invisible" />
-
         <ImageView
             android:id="@+id/server_row_more"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end"
-            android:layout_marginTop="-220dp"
-            android:background="?selectableItemBackgroundBorderless"
-            android:padding="8dp"
-            android:src="@drawable/ic_card_overflow"
-            app:tint="#B0B0B0" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</FrameLayout>
