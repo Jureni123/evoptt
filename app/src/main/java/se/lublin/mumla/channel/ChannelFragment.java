@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View Integration Modifed By Jureni123 2026
+ * Modified for Mumla OLED Single Channel View Integration
  */
 package se.lublin.mumla.channel;
 
@@ -859,9 +859,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mChatTargetListeners.add(listener);
     }
 
-    // PERBAIKAN 3: GANTI NAMA METHOD SESUAI INTERFACE ASLI (TAMBAHKAN KATA "Selected")
+    // PERBAIKAN 3: GANTI NAMA METHOD SESUAI INTERFACE ASLI (HAPUS KATA "Selected")
+    // Interface ChatTargetProvider meminta: unregisterChatTargetListener
     @Override
-    public void unregisterChatTargetSelectedListener(OnChatTargetSelectedListener listener) {
+    public void unregisterChatTargetListener(OnChatTargetSelectedListener listener) {
         mChatTargetListeners.remove(listener);
     }
 
