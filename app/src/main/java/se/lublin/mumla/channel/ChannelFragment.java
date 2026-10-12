@@ -1,11 +1,12 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED - Safe Mobile Editor Version
+ * Modified for Mumla OLED - Stage Layout Version
  */
 package se.lublin.mumla.channel;
 
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.TypedValue;
@@ -25,6 +26,7 @@ import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
@@ -59,8 +61,9 @@ import se.lublin.mumla.service.MumlaService;
 import se.lublin.mumla.util.HumlaServiceFragment;
 
 public class ChannelFragment extends HumlaServiceFragment implements SharedPreferences.OnSharedPreferenceChangeListener, ChatTargetProvider {
-    private static final String TAG = "MumlaOLED"; // Tag singkat buat Logcat HP
+    private static final String TAG = "MumlaOLED";
 
+    // Variabel Lama (ViewPager, PTT, dll)
     private ViewPager mViewPager;
     private PagerTabStrip mTabStrip;
     private Button mTalkButton;
@@ -69,12 +72,16 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private ImageView mTargetPanelCancel;
     private TextView mTargetPanelText;
 
-    // Variabel Single Channel View
+    // Variabel Single Channel View (STAGE LAYOUT BARU)
     private FrameLayout mSingleChContainer;
     private RecyclerView mRvUserList;
     private SingleChannelUserAdapter mSingleUserAdapter;
     private View mHeaderSingleCh;
-    private TextView mTvChannelName, mTvChannelDesc, mTvUserCount, mTvLatency, mTvBandwidth;
+    
+    // Variabel Header Stage (Sesuai XML Baru)
+    private TextView mTvChannelId, mTvChannelName, mTvSpeakerName, mTvChannelDesc;
+    private ImageView mImgMainAvatar;
+    // Placeholder fitur tambahan (KB/Ping) TIDAK DI-DECLARE DI JAVA SESUAI REQUEST
 
     private ChatTarget mChatTarget;
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<>();
@@ -90,10 +97,16 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             if (getService() == null || !getService().isConnected()) return;
             try {
                 int selfSession = getService().HumlaSession().getSessionId();
+                
+                // Update PTT Button State
                 if (user != null && user.getSession() == selfSession && mTalkButton != null) {
                     mTalkButton.setActivated(isTalkingState(user.getTalkState()));
                 }
-                // Update adapter real-time
+
+                // UPDATE STAGE HEADER SECARA REAL-TIME
+                updateStageHeader(user);
+
+                // Update Adapter List User (Sorting dinamis nanti di adapter)
                 if (mSingleUserAdapter != null && mRvUserList != null) {
                     mSingleUserAdapter.updateUserState(user, mRvUserList);
                 }
@@ -166,7 +179,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         });
         mTargetPanelText = view.findViewById(R.id.target_panel_warning);
 
-        // === SETUP SINGLE CHANNEL VIEW CONTAINER ===
+        // === SETUP SINGLE CHANNEL VIEW CONTAINER (STRUKTUR BARU) ===
         mSingleChContainer = view.findViewById(R.id.single_ch_container);
         mRvUserList = view.findViewById(R.id.rv_user_list);
         
@@ -183,17 +196,21 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             });
             mRvUserList.setAdapter(mSingleUserAdapter);
             
-            // INFLATE HEADER DAN TEMPEL KE CONTAINER
+            // INFLATE HEADER KE STAGE CONTAINER YANG BENAR
             mHeaderSingleCh = inflater.inflate(R.layout.header_single_channel, mRvUserList, false);
-            mTvChannelName = mHeaderSingleCh.findViewById(R.id.tv_channel_name);
-            mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
-            mTvUserCount = mHeaderSingleCh.findViewById(R.id.tv_user_count);
-            mTvLatency = mHeaderSingleCh.findViewById(R.id.tv_latency);
-            mTvBandwidth = mHeaderSingleCh.findViewById(R.id.tv_bandwidth);
             
-            // PENTING: Tambahkan header ke FrameLayout container
-            if (mSingleChContainer != null) {
-                mSingleChContainer.addView(mHeaderSingleCh, 0);
+            // Inisialisasi Variabel Header Stage
+            mTvChannelId = mHeaderSingleCh.findViewById(R.id.tv_channel_id);
+            mTvChannelName = mHeaderSingleCh.findViewById(R.id.tv_channel_name);
+            mTvSpeakerName = mHeaderSingleCh.findViewById(R.id.tv_speaker_name);
+            mImgMainAvatar = mHeaderSingleCh.findViewById(R.id.img_main_avatar);
+            mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
+            // Placeholder KB/Ping TIDAK DI-INISIALISASI DI SINI
+
+            // TEMPEL HEADER KE header_stage_container (BUKAN KE ROOT FRAME LAYOUT!)
+            ViewGroup stageContainer = view.findViewById(R.id.header_stage_container);
+            if (stageContainer != null && mHeaderSingleCh != null) {
+                stageContainer.addView(mHeaderSingleCh);
             }
         }
 
@@ -222,37 +239,54 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         return view;
     }
 
-    // === METODE REFRESH SINGLE CH VIEW (DENGAN LOG DEBUG) ===
-    private void refreshSingleChannelView() {
-        Log.d(TAG, ">>> REFRESH CALLED");
-        if (getService() == null || !getService().isConnected() || mSingleUserAdapter == null) {
-            Log.d(TAG, ">>> Service/Adapter NULL"); return;
+    // === LOGIC UPDATE STAGE HEADER (DINAMIS) ===
+    private void updateStageHeader(IUser talkingUser) {
+        if (mTvSpeakerName == null || mImgMainAvatar == null) return;
+
+        boolean isTalking = talkingUser != null && isTalkingState(talkingUser.getTalkState());
+        
+        if (isTalking) {
+            // MODE SPEAKER: Tampilkan Nama User & Avatar User
+            mTvSpeakerName.setText(talkingUser.getName());
+            mTvSpeakerName.setVisibility(View.VISIBLE);
+            
+            // Ambil avatar user dari cache atau drawable default
+            Drawable userAvatar = mSingleUserAdapter != null ? 
+                mSingleUserAdapter.getTalkStateDrawable(talkingUser) : null;
+            if (userAvatar != null) {
+                mImgMainAvatar.setImageDrawable(userAvatar);
+            }
+        } else {
+            // MODE HENING: Sembunyikan nama speaker, kembalikan Logo Channel/Aplikasi
+            mTvSpeakerName.setVisibility(View.GONE);
+            mImgMainAvatar.setImageResource(R.drawable.ic_launcher_foreground); // Ganti dengan logo channel jika ada
         }
+    }
+
+    // === METODE REFRESH SINGLE CH VIEW ===
+    private void refreshSingleChannelView() {
+        if (getService() == null || !getService().isConnected() || mSingleUserAdapter == null) return;
         
         try {
             IHumlaSession session = getService().HumlaSession();
             IChannel currentChannel = session.getSessionChannel();
-            if (currentChannel == null) { Log.d(TAG, ">>> Channel NULL"); return; }
+            if (currentChannel == null) return;
 
-            Log.d(TAG, ">>> Channel: " + currentChannel.getName());
-
+            // Update Info Channel di Stage
+            if (mTvChannelId != null) mTvChannelId.setText("CH " + currentChannel.getId());
             if (mTvChannelName != null) mTvChannelName.setText(currentChannel.getName());
             if (mTvChannelDesc != null) {
                 String desc = currentChannel.getDescription();
                 mTvChannelDesc.setText(desc != null ? desc : "");
                 mTvChannelDesc.setVisibility(desc != null && !desc.isEmpty() ? View.VISIBLE : View.GONE);
             }
-            if (mTvUserCount != null) mTvUserCount.setText("Online: " + (currentChannel.getUsers() != null ? currentChannel.getUsers().size() : 0));
-            if (mTvLatency != null) mTvLatency.setText("Latensi: " + session.getTCPLatency() + "ms");
-            if (mTvBandwidth != null) {
-                int bw = session.getCurrentBandwidth();
-                mTvBandwidth.setText("↑:" + (bw>0?bw/1000:0) + "kb ↓:" + (bw>0?bw/1000:0) + "kb");
-            }
+            
+            // Reset Stage ke Mode Hening saat refresh channel
+            updateStageHeader(null);
 
+            // Update List User
             List<? extends IUser> rawUsers = currentChannel.getUsers();
             List<IUser> users = rawUsers != null ? new ArrayList<>(rawUsers) : new ArrayList<>();
-            
-            // Panggil setUsers dengan 2 parameter (users + currentChannel)
             mSingleUserAdapter.setUsers(users, currentChannel);
             
         } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
@@ -415,6 +449,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         PreferenceManager.getDefaultSharedPreferences(getActivity()).unregisterOnSharedPreferenceChangeListener(this);
         mViewPager=null; mTabStrip=null; mTalkButton=null; mTalkView=null; mTargetPanel=null; mTargetPanelCancel=null; mTargetPanelText=null;
         mSingleChContainer=null; mRvUserList=null; mSingleUserAdapter=null; mHeaderSingleCh=null;
+        mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
     }
 
@@ -423,12 +458,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     @Override
     public void onServiceBound(IHumlaService service) {
         super.onServiceBound(service);
-        // KRUSIAL: Aktifkan Single CH View saat connected!
         if (service.getConnectionState() == HumlaService.ConnectionState.CONNECTED) {
             configureTargetPanel();
             configureInput();
             if (mSingleChContainer != null) {
-                mSingleChContainer.setVisibility(View.VISIBLE); // <-- INI YANG BIKIN LAYAR TIDAK HITAM
+                mSingleChContainer.setVisibility(View.VISIBLE);
                 refreshSingleChannelView();
             }
         } else {
@@ -481,8 +515,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     @Override public ChatTarget getChatTarget() { return mChatTarget; }
     @Override public void setChatTarget(ChatTarget t) { mChatTarget=t; for(OnChatTargetSelectedListener l:mChatTargetListeners) l.onChatTargetSelected(t); }
     @Override public void registerChatTargetListener(OnChatTargetSelectedListener l) { mChatTargetListeners.add(l); }
-    
-    // FIX: Nama method sesuai interface asli
     @Override public void unregisterChatTargetListener(OnChatTargetSelectedListener l) { mChatTargetListeners.remove(l); }
 
     private class ChannelFragmentPagerAdapter extends FragmentPagerAdapter {
