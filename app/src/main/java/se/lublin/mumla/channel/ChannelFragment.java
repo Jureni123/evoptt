@@ -528,4 +528,3 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         @Override public int getCount() { return 2; }
     }
 }
-kaya ya ga ada private Drawable
