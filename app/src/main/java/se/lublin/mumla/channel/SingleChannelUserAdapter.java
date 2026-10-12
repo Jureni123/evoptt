@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View - Safe Version
+ * Modified for Mumla OLED Single Channel View - Auto Sorting Version
  */
 package se.lublin.mumla.channel;
 
@@ -18,6 +18,7 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import se.lublin.humla.model.IChannel;
@@ -42,7 +43,6 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        // Gunakan ID yang PASTI ADA di item_user_card.xml kamu saat ini
         ImageView imgAvatarState;
         TextView tvUsername;
         TextView tvChannelBadge; 
@@ -78,8 +78,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         // 1. Set Nama User
         holder.tvUsername.setText(user.getName());
         
-        // 2. Set Badge Channel (Kita pakai tvChannelBadge yang sudah ada)
-        // Tampilkan ID channel user jika berbeda dengan channel aktif (Fitur Parent CH)
+        // 2. Set Badge Channel (Fitur Parent CH)
         try {
             IChannel userChan = user.getChannel();
             if (userChan != null && mCurrentChannel != null && userChan.getId() != mCurrentChannel.getId()) {
@@ -92,7 +91,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             holder.tvChannelBadge.setVisibility(View.GONE);
         }
 
-        // 3. Set Lokasi/Comment (Handle "null" agar rapi)
+        // 3. Set Lokasi/Comment
         String comment = user.getComment();
         if (comment != null && !comment.isEmpty() && !comment.equalsIgnoreCase("null")) {
             holder.tvLocationComment.setText(comment);
@@ -101,7 +100,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             holder.tvLocationComment.setVisibility(View.GONE);
         }
 
-        // 4. Set State Icon / Avatar (Logic Lama Tetap Jalan)
+        // 4. Set State Icon / Avatar
         Drawable stateDrawable = getTalkStateDrawable(user);
         holder.imgAvatarState.setImageDrawable(stateDrawable);
 
@@ -121,41 +120,66 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     /**
-     * Mengupdate daftar user & channel saat ini.
-     * PARAMETER CHANNEL DIBUAT OPSIONAL AGAR KOMPATIBEL DENGAN KODE LAMA
+     * Mengupdate daftar user & channel saat ini DENGAN AUTO-SORTING.
      */
+    public void setUsers(List<IUser> users, IChannel currentChannel) {
+        mUsers.clear();
+        mCurrentChannel = currentChannel; 
+        
+        if (users != null) {
+            mUsers.addAll(users);
+            
+            // === LOGIC SORTING OTOMATIS ===
+            // Prioritas: 1. Sedang Bicara (Talking/Shouting/Whispering)
+            //            2. Urutan Alfabetis (A-Z) jika status sama
+            Collections.sort(mUsers, (user1, user2) -> {
+                boolean u1Talking = isTalkingState(user1.getTalkState());
+                boolean u2Talking = isTalkingState(user2.getTalkState());
+                
+                // Jika user1 bicara dan user2 tidak, user1 naik ke atas (-1)
+                if (u1Talking && !u2Talking) return -1;
+                // Jika user2 bicara dan user1 tidak, user2 naik ke atas (1)
+                if (!u1Talking && u2Talking) return 1;
+                
+                // Jika sama-sama bicara atau sama-sama diam, urutkan nama A-Z
+                return user1.getName().compareToIgnoreCase(user2.getName());
+            });
+        }
+        
+        notifyDataSetChanged();
+    }
+
+    // Overload method lama agar kompatibel
     public void setUsers(List<IUser> users) {
         setUsers(users, null);
     }
 
-    public void setUsers(List<IUser> users, IChannel currentChannel) {
-        mUsers.clear();
-        mCurrentChannel = currentChannel; 
-        if (users != null) {
-            mUsers.addAll(users);
-        }
-        notifyDataSetChanged();
-    }
-
     /**
      * Update state satu user secara real-time.
+     * CATATAN: Karena sorting mengubah posisi, update single item bisa tricky.
+     * Untuk keamanan & konsistensi sorting, lebih baik refresh full list saat state berubah.
      */
     public void updateUserState(IUser user, RecyclerView recyclerView) {
+        // Opsi Aman: Refresh seluruh list agar sorting tetap konsisten
+        // Cari channel saat ini dari adapter atau pass ulang jika perlu
+        // Untuk sementara, kita biarkan update visual saja tanpa re-sort di sini
+        // Re-sort akan terjadi otomatis saat refreshSingleChannelView() dipanggil dari Fragment
+        
         int index = mUsers.indexOf(user);
-        if (index < 0) return;
-
-        ViewHolder vh = (ViewHolder) recyclerView.findViewHolderForAdapterPosition(index);
-        if (vh != null) {
-            // Update Avatar/State Icon
-            Drawable newState = getTalkStateDrawable(user);
-            vh.imgAvatarState.setImageDrawable(newState);
-        } else {
+        if (index >= 0) {
             notifyItemChanged(index);
         }
     }
 
     public void setOnUserClickListener(OnUserClickListener listener) {
         mListener = listener;
+    }
+
+    // === HELPER METHOD CEK TALKING STATE ===
+    private boolean isTalkingState(TalkState state) {
+        return state == TalkState.TALKING || 
+               state == TalkState.SHOUTING || 
+               state == TalkState.WHISPERING;
     }
 
     // === LOGIKA DRAWABLE (SAMA PERSIS DENGAN CHANNELLISTADAPTER) ===
@@ -173,9 +197,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_muted);
         } else if (user.isSuppressed()) {
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_suppressed);
-        } else if (user.getTalkState() == TalkState.TALKING
-                || user.getTalkState() == TalkState.SHOUTING
-                || user.getTalkState() == TalkState.WHISPERING) {
+        } else if (isTalkingState(user.getTalkState())) {
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_on);
         } else {
             Bitmap bitmap = mAvatarCache.get(user);
