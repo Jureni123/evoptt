@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View
+ * Modified for Mumla OLED Single Channel View - Hello Live Style
  */
 package se.lublin.mumla.channel;
 
@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 
+import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.TalkState;
 import se.lublin.mumla.R;
@@ -31,6 +32,9 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     private final List<IUser> mUsers = new ArrayList<>();
     private final AvatarCache mAvatarCache = new AvatarCache();
     private OnUserClickListener mListener;
+    
+    // Simpan channel saat ini untuk cek badge parent
+    private IChannel mCurrentChannel;
 
     public interface OnUserClickListener {
         void onUserClick(IUser user);
@@ -40,17 +44,19 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     public static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView imgAvatarState;
         TextView tvUsername;
-        TextView tvChannelBadge;
+        TextView tvLevelBadge;       // BARU: Untuk "HM c786"
+        TextView tvParentChBadge;    // BARU: Untuk "CH 005"
         TextView tvLocationComment;
-        ImageView imgMoreOptions;
+        ImageView imgTalkingIndicator; // BARU: Icon mikrofon hijau
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             imgAvatarState = itemView.findViewById(R.id.img_avatar_state);
             tvUsername = itemView.findViewById(R.id.tv_username);
-            tvChannelBadge = itemView.findViewById(R.id.tv_channel_badge);
+            tvLevelBadge = itemView.findViewById(R.id.tv_level_badge);
+            tvParentChBadge = itemView.findViewById(R.id.tv_parent_ch_badge);
             tvLocationComment = itemView.findViewById(R.id.tv_location_comment);
-            imgMoreOptions = itemView.findViewById(R.id.img_more_options);
+            imgTalkingIndicator = itemView.findViewById(R.id.img_talking_indicator);
         }
     }
 
@@ -70,24 +76,51 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         IUser user = mUsers.get(position);
         if (user == null) return;
 
-        // Set Nama
+        // 1. Set Nama User
         holder.tvUsername.setText(user.getName());
         
-        // Set Lokasi/Comment (Fallback ke string kosong jika null)
-        String comment = user.getComment();
-        holder.tvLocationComment.setText(comment != null ? comment : "");
-        holder.tvLocationComment.setVisibility(comment != null && !comment.isEmpty() ? View.VISIBLE : View.GONE);
+        // 2. Set Badge Level (Simulasi/Placeholder)
+        // Karena IUser standar tidak punya field "level", kita bisa pakai Session ID atau Comment sebagai placeholder
+        // Nanti kalau ada API khusus level, tinggal ganti di sini.
+        String levelText = "HM " + Integer.toHexString(user.getSession()).substring(0, 4); 
+        holder.tvLevelBadge.setText(levelText);
+        holder.tvLevelBadge.setVisibility(View.VISIBLE);
 
-        // Set State Icon / Avatar
-        holder.imgAvatarState.setImageDrawable(getTalkStateDrawable(user));
+        // 3. Set Badge Channel Parent (Fitur Hello Live!)
+        // Cek apakah user berada di channel yang sama dengan current channel
+        if (mCurrentChannel != null && user.getChannelId() != mCurrentChannel.getId()) {
+            // Jika beda, tampilkan badge channel asalnya
+            // Catatan: IUser biasanya tidak langsung punya nama channel parent, 
+            // jadi kita butuh logic tambahan atau ambil dari session data jika tersedia.
+            // Untuk sementara, kita tampilkan ID channel-nya saja.
+            holder.tvParentChBadge.setText("CH " + user.getChannelId());
+            holder.tvParentChBadge.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvParentChBadge.setVisibility(View.GONE);
+        }
+
+        // 4. Set Lokasi/Comment (Handle "null" agar rapi)
+        String comment = user.getComment();
+        if (comment != null && !comment.isEmpty() && !comment.equals("null")) {
+            holder.tvLocationComment.setText(comment);
+            holder.tvLocationComment.setVisibility(View.VISIBLE);
+        } else {
+            holder.tvLocationComment.setVisibility(View.GONE);
+        }
+
+        // 5. Set State Icon / Avatar (Logic Lama Tetap Jalan)
+        Drawable stateDrawable = getTalkStateDrawable(user);
+        holder.imgAvatarState.setImageDrawable(stateDrawable);
+
+        // 6. Indikator Talking Terpisah (Icon Mikrofon Hijau)
+        boolean isTalking = (user.getTalkState() == TalkState.TALKING || 
+                             user.getTalkState() == TalkState.SHOUTING || 
+                             user.getTalkState() == TalkState.WHISPERING);
+        holder.imgTalkingIndicator.setVisibility(isTalking ? View.VISIBLE : View.INVISIBLE);
 
         // Setup Click Listener
         holder.itemView.setOnClickListener(v -> {
             if (mListener != null) mListener.onUserClick(user);
-        });
-
-        holder.imgMoreOptions.setOnClickListener(v -> {
-            if (mListener != null) mListener.onMoreClick(user, v);
         });
     }
 
@@ -97,11 +130,11 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     /**
-     * Mengupdate daftar user secara keseluruhan.
-     * Panggil ini saat channel berubah atau user join/part.
+     * Mengupdate daftar user & channel saat ini.
      */
-    public void setUsers(List<IUser> users) {
+    public void setUsers(List<IUser> users, IChannel currentChannel) {
         mUsers.clear();
+        mCurrentChannel = currentChannel; // Simpan referensi channel aktif
         if (users != null) {
             mUsers.addAll(users);
         }
@@ -109,8 +142,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     /**
-     * Update state satu user secara real-time tanpa reload seluruh list.
-     * Diambil dari ChannelListAdapter asli.
+     * Update state satu user secara real-time.
      */
     public void updateUserState(IUser user, RecyclerView recyclerView) {
         int index = mUsers.indexOf(user);
@@ -118,19 +150,15 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
 
         ViewHolder vh = (ViewHolder) recyclerView.findViewHolderForAdapterPosition(index);
         if (vh != null) {
+            // Update Avatar/State Icon
             Drawable newState = getTalkStateDrawable(user);
-            Drawable current = vh.imgAvatarState.getDrawable();
+            vh.imgAvatarState.setImageDrawable(newState);
             
-            // Cek apakah drawable benar-benar berubah sebelum set ulang
-            if (newState != null && current != null) {
-                Drawable.ConstantState csNew = newState.getConstantState();
-                Drawable.ConstantState csCurrent = current.getConstantState();
-                if (csNew == null || !csNew.equals(csCurrent)) {
-                    vh.imgAvatarState.setImageDrawable(newState);
-                }
-            } else if (newState != null) {
-                vh.imgAvatarState.setImageDrawable(newState);
-            }
+            // Update Indikator Talking
+            boolean isTalking = (user.getTalkState() == TalkState.TALKING || 
+                                 user.getTalkState() == TalkState.SHOUTING || 
+                                 user.getTalkState() == TalkState.WHISPERING);
+            vh.imgTalkingIndicator.setVisibility(isTalking ? View.VISIBLE : View.INVISIBLE);
         } else {
             notifyItemChanged(index);
         }
@@ -140,7 +168,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         mListener = listener;
     }
 
-    // === LOGIKA DRAWABLE DIAMBIL DARI CHANNELLISTADAPTER ASLI ===
+    // === LOGIKA DRAWABLE (SAMA PERSIS DENGAN CHANNELLISTADAPTER) ===
     private Drawable getTalkStateDrawable(IUser user) {
         if (user == null) {
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
