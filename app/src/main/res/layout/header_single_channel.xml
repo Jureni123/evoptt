@@ -3,34 +3,44 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="24dp"
+    android:padding="20dp"
     android:gravity="center_horizontal"
     android:background="#121212">
 
-    <!-- Nama Channel Besar -->
+    <!-- ID Channel (Kecil di atas) -->
+    <TextView
+        android:id="@+id/tv_channel_id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CH 002"
+        android:textColor="#888888"
+        android:textSize="14sp"
+        android:textStyle="bold"/>
+
+    <!-- Nama Channel (Besar & Jelas) -->
     <TextView
         android:id="@+id/tv_channel_name"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CH 009"
+        android:text="CHANNEL UMUM"
         android:textColor="#FFFFFF"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginTop="4dp"/>
 
-    <!-- Subtitle / Description -->
+    <!-- Subtitle / Deskripsi -->
     <TextView
         android:id="@+id/tv_channel_desc"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="EXPRESI MUSIC - Hello Live"
+        android:text="Hello Live"
         android:textColor="#AAAAAA"
         android:textSize="16sp"
-        android:layout_marginTop="4dp"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:gravity="center"/>
+        android:gravity="center"
+        android:layout_marginTop="4dp"/>
 
-    <!-- Status Bar: Online | Latency -->
+    <!-- Status Bar Teknis (Online | BW | Latensi) -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -42,7 +52,7 @@
             android:id="@+id/tv_user_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Online: 6"
+            android:text="Online: 1"
             android:textColor="#4CAF50"
             android:textSize="14sp"
             android:textStyle="bold"/>
@@ -54,10 +64,10 @@
             android:textColor="#555555" />
 
         <TextView
-            android:id="@+id/tv_latency"
+            android:id="@+id/tv_bandwidth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Latensi: 0ms"
+            android:text="↑: 0 kb ↓: 0 kb"
             android:textColor="#888888"
             android:textSize="14sp" />
             
@@ -68,10 +78,10 @@
             android:textColor="#555555" />
 
         <TextView
-            android:id="@+id/tv_bandwidth"
+            android:id="@+id/tv_latency"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="↑: 0 kb ↓: 0 kb"
+            android:text="Latensi: 42ms"
             android:textColor="#888888"
             android:textSize="14sp" />
     </LinearLayout>
