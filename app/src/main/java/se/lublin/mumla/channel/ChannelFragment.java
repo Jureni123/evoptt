@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED - Stage Layout Version
+ * By Jureni123 Modified for Mumla OLED - Stage Layout Version (Auto-Refresh Fixed)
  */
 package se.lublin.mumla.channel;
 
@@ -57,7 +57,7 @@ import se.lublin.humla.util.VoiceTargetMode;
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
 import se.lublin.mumla.app.MumlaActivity;
-import se.lublin.mumla.service.MumlaService;
+import se.lublin.mumla.service.MumlaService; 
 import se.lublin.mumla.util.HumlaServiceFragment;
 
 public class ChannelFragment extends HumlaServiceFragment implements SharedPreferences.OnSharedPreferenceChangeListener, ChatTargetProvider {
@@ -78,10 +78,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private SingleChannelUserAdapter mSingleUserAdapter;
     private View mHeaderSingleCh;
     
-    // Variabel Header Stage (Sesuai XML Baru)
+    // Variabel Header Stage
     private TextView mTvChannelId, mTvChannelName, mTvSpeakerName, mTvChannelDesc;
     private ImageView mImgMainAvatar;
-    // Placeholder fitur tambahan (KB/Ping) TIDAK DI-DECLARE DI JAVA SESUAI REQUEST
 
     private ChatTarget mChatTarget;
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<>();
@@ -91,6 +90,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private View mBtnGlobalSet, mBtnAudioMenu, mBtnSessionMenu, mBtnListCh;
     private FrameLayout mPttContainer;
 
+    // Observer yang Sudah Diperbaiki untuk Auto-Refresh
     private HumlaObserver mObserver = new HumlaObserver() {
         @Override
         public void onUserTalkStateUpdated(IUser user) {
@@ -98,15 +98,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             try {
                 int selfSession = getService().HumlaSession().getSessionId();
                 
-                // Update PTT Button State
+                // Update PTT Button State (Hanya untuk diri sendiri)
                 if (user != null && user.getSession() == selfSession && mTalkButton != null) {
                     mTalkButton.setActivated(isTalkingState(user.getTalkState()));
                 }
 
-                // UPDATE STAGE HEADER SECARA REAL-TIME
+                // UPDATE STAGE HEADER SECARA REAL-TIME (Untuk semua user yang bicara)
                 updateStageHeader(user);
 
-                // Update Adapter List User
+                // Update Adapter List User (Sorting dinamis & talking state)
                 if (mSingleUserAdapter != null && mRvUserList != null) {
                     mSingleUserAdapter.updateUserState(user, mRvUserList);
                 }
@@ -118,39 +118,24 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             if (getService() == null || !getService().isConnected()) return;
             try {
                 int selfSession = getService().HumlaSession().getSessionId();
-                if (user != null && user.getSession() == selfSession) configureInput();
                 
-                // Refresh saat ada perubahan user/channel
+                // 1. Update Input Config HANYA JIKA DIRI SENDIRI YANG BERUBAH
+                if (user != null && user.getSession() == selfSession) {
+                    configureInput();
+                }
+
+                // 2. AUTO REFRESH LIST & HEADER SAAT ADA PERUBAHAN USER APAPUN
+                // FIX: HAPUS FILTER selfSession DI SINI AGAR USER JOIN/PART TERDETEKSI
                 if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
                     refreshSingleChannelView();
                 }
             } catch (Exception e) { Log.d(TAG, "Err user state: " + e); }
         }
 
-        // ✅ REFRESH OTOMATIS SAAT USER BARU MASUK
-
-        public void onUserJoined(IUser user) {
-            if (mSingleChContainer != null 
-                && mSingleChContainer.getVisibility() == View.VISIBLE
-                && getService() != null 
-                && getService().isConnected()) {
-                refreshSingleChannelView();
-            }
-        }
-
-        // ✅ REFRESH OTOMATIS SAAT USER KELUAR
-        
-        public void onUserLeft(IUser user) {
-            if (mSingleChContainer != null 
-                && mSingleChContainer.getVisibility() == View.VISIBLE
-                && getService() != null 
-                && getService().isConnected()) {
-                refreshSingleChannelView();
-            }
-        }
-
         @Override
-        public void onVoiceTargetChanged(VoiceTargetMode mode) { configureTargetPanel(); }
+        public void onVoiceTargetChanged(VoiceTargetMode mode) { 
+            configureTargetPanel(); 
+        }
     };
 
     @Override
@@ -201,7 +186,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         });
         mTargetPanelText = view.findViewById(R.id.target_panel_warning);
 
-        // === SETUP SINGLE CHANNEL VIEW CONTAINER (STRUKTUR BARU) ===
+        // === SETUP SINGLE CHANNEL VIEW CONTAINER ===
         mSingleChContainer = view.findViewById(R.id.single_ch_container);
         mRvUserList = view.findViewById(R.id.rv_user_list);
         
@@ -218,7 +203,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             });
             mRvUserList.setAdapter(mSingleUserAdapter);
             
-            // INFLATE HEADER KE STAGE CONTAINER YANG BENAR
+            // INFLATE HEADER KE STAGE CONTAINER
             mHeaderSingleCh = inflater.inflate(R.layout.header_single_channel, mRvUserList, false);
             
             // Inisialisasi Variabel Header Stage
@@ -227,9 +212,8 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mTvSpeakerName = mHeaderSingleCh.findViewById(R.id.tv_speaker_name);
             mImgMainAvatar = mHeaderSingleCh.findViewById(R.id.img_main_avatar);
             mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
-            // Placeholder KB/Ping TIDAK DI-INISIALISASI DI SINI
 
-            // TEMPEL HEADER KE header_stage_container (BUKAN KE ROOT FRAME LAYOUT!)
+            // TEMPEL HEADER KE header_stage_container
             ViewGroup stageContainer = view.findViewById(R.id.header_stage_container);
             if (stageContainer != null && mHeaderSingleCh != null) {
                 stageContainer.addView(mHeaderSingleCh);
@@ -272,20 +256,20 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mTvSpeakerName.setText(talkingUser.getName());
             mTvSpeakerName.setVisibility(View.VISIBLE);
             
-            // Ambil avatar user dari cache atau drawable default
+            // Ambil avatar user dari adapter
             Drawable userAvatar = mSingleUserAdapter != null ? 
                 mSingleUserAdapter.getTalkStateDrawable(talkingUser) : null;
             if (userAvatar != null) {
                 mImgMainAvatar.setImageDrawable(userAvatar);
             }
         } else {
-            // MODE HENING: Sembunyikan nama speaker, kembalikan Logo Channel/Aplikasi
+            // MODE HENING: Sembunyikan nama speaker, kembalikan Logo Default
             mTvSpeakerName.setVisibility(View.GONE);
             mImgMainAvatar.setImageResource(R.drawable.ic_launcher_foreground);
         }
     }
 
-    // === METODE REFRESH SINGLE CH VIEW ===
+    // === METODE REFRESH SINGLE CH VIEW (AUTO-REFRESH FIX) ===
     private void refreshSingleChannelView() {
         if (getService() == null || !getService().isConnected() || mSingleUserAdapter == null) return;
         
@@ -407,7 +391,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         bs.show();
     }
 
-    // === SESSION MENU ===
+    // === SESSION MENU (REFRESH CHANNEL FIX) ===
     private void showSessionMenu() {
         if (!isAdded()) return;
         BottomSheetDialog bs = new BottomSheetDialog(requireContext());
@@ -421,11 +405,28 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             } bs.dismiss();
         });
 
+        // FIX: TOMBOL REFRESH CHANNEL YANG BENAR
         sv.findViewById(R.id.btn_refresh_channel).setOnClickListener(v -> {
             if(getService() instanceof HumlaService && ((HumlaService)getService()).isConnected()) {
-                try { ((HumlaService)getService()).requestPermissions(((HumlaService)getService()).getSessionChannel().getId()); }
-                catch(Exception e){}
-            } bs.dismiss();
+                try {
+                    HumlaService service = (HumlaService) getService();
+                    int currentChId = service.getSessionChannel().getId();
+                    
+                    // Request permission/data channel ulang ke server
+                    service.requestPermissions(currentChId);
+                    
+                    // Paksa refresh tampilan lokal juga biar instant
+                    refreshSingleChannelView();
+                    
+                    Toast.makeText(requireContext(), "Memuat ulang channel...", Toast.LENGTH_SHORT).show();
+                } catch(Exception e) {
+                    Log.e(TAG, "Error refresh channel", e);
+                    Toast.makeText(requireContext(), "Gagal memuat ulang", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(requireContext(), "Belum terhubung", Toast.LENGTH_SHORT).show();
+            }
+            bs.dismiss();
         });
 
         sv.findViewById(R.id.btn_disconnect).setOnClickListener(v -> {
