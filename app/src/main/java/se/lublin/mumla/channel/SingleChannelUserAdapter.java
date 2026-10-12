@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View - Auto Sorting Version
+ * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting Version
  */
 package se.lublin.mumla.channel;
 
@@ -155,19 +155,42 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     /**
-     * Update state satu user secara real-time.
-     * CATATAN: Karena sorting mengubah posisi, update single item bisa tricky.
-     * Untuk keamanan & konsistensi sorting, lebih baik refresh full list saat state berubah.
+     * Update state satu user secara real-time DENGAN RE-SORTING.
+     * FIX: Sekarang method ini memicu sorting ulang agar user yang bicara
+     * langsung meluncur ke posisi atas tanpa perlu refresh manual.
      */
     public void updateUserState(IUser user, RecyclerView recyclerView) {
-        // Opsi Aman: Refresh seluruh list agar sorting tetap konsisten
-        // Cari channel saat ini dari adapter atau pass ulang jika perlu
-        // Untuk sementara, kita biarkan update visual saja tanpa re-sort di sini
-        // Re-sort akan terjadi otomatis saat refreshSingleChannelView() dipanggil dari Fragment
+        if (user == null) return;
         
-        int index = mUsers.indexOf(user);
-        if (index >= 0) {
-            notifyItemChanged(index);
+        // Cek apakah user ada di list kita
+        int oldIndex = mUsers.indexOf(user);
+        if (oldIndex < 0) return;
+
+        // Lakukan sorting ulang seluruh list
+        // Ini memastikan user yang baru bicara pindah ke posisi yang benar
+        Collections.sort(mUsers, (u1, u2) -> {
+            boolean t1 = isTalkingState(u1.getTalkState());
+            boolean t2 = isTalkingState(u2.getTalkState());
+            
+            if (t1 && !t2) return -1;
+            if (!t1 && t2) return 1;
+            
+            return u1.getName().compareToIgnoreCase(u2.getName());
+        });
+
+        // Cari posisi baru user setelah sorting
+        int newIndex = mUsers.indexOf(user);
+        
+        // Jika posisi berubah, gunakan notifyItemMoved untuk animasi smooth
+        // Jika tidak berubah (misal sama-sama bicara), cukup update icon
+        if (oldIndex != newIndex) {
+            notifyItemMoved(oldIndex, newIndex);
+            // Update juga item yang tertukar posisinya
+            notifyItemChanged(oldIndex); 
+            notifyItemChanged(newIndex);
+        } else {
+            // Posisi sama, cuma update tampilan icon/avatar
+            notifyItemChanged(newIndex);
         }
     }
 
