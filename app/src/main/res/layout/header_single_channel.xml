@@ -6,7 +6,8 @@
     android:gravity="center_horizontal"
     android:paddingTop="24dp"
     android:paddingBottom="16dp"
-    android:backgroundColor="#154360">
+    android:background="#154360">
+
 
     <!-- 1. ID CHANNEL (Paling Atas Tengah) -->
     <TextView
