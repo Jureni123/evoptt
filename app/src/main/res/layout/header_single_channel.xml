@@ -6,7 +6,7 @@
     android:gravity="center_horizontal"
     android:paddingTop="24dp"
     android:paddingBottom="16dp"
-    android:background="#121212">
+    android:backgroundColor="#EEEEEE">
 
     <!-- 1. ID CHANNEL (Paling Atas Tengah) -->
     <TextView
@@ -14,7 +14,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="CH 005"
-        android:textColor="#888888"
+        android:textColor="#00BFFF"
         android:textSize="14sp"
         android:textStyle="bold"/>
 
@@ -24,7 +24,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="RADIO HELLO"
-        android:textColor="#FFFFFF"
+        android:textColor="#00FF41"
         android:textSize="24sp"
         android:textStyle="bold"
         android:gravity="center"
