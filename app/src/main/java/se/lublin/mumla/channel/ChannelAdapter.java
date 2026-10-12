@@ -1,20 +1,7 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Modified for Mumla OLED - Auto Sorting & Optimized Update
  */
-
 package se.lublin.mumla.channel;
 
 import android.content.Context;
@@ -32,6 +19,10 @@ import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.TalkState;
@@ -39,13 +30,18 @@ import se.lublin.mumla.R;
 import se.lublin.mumla.drawable.CircleDrawable;
 
 /**
- * Modern RecyclerView adapter to display channel members in the overlay HUD.
+ * Modern RecyclerView adapter with VIRTUAL SORTING layer.
+ * Reads from IChannel but displays in sorted order (Talking > A-Z).
  */
 public final class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.ViewHolder> {
 
     private final AvatarCache mAvatarCache = new AvatarCache();
     private final Context mContext;
     private IChannel mChannel;
+    
+    // VIRTUAL SORTED INDICES: Menyimpan urutan posisi user setelah di-sorting
+    // Agar tidak perlu memodifikasi object IChannel asli dari server
+    private final List<Integer> mSortedIndices = new ArrayList<>();
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         final ImageView stateIcon;
@@ -60,7 +56,7 @@ public final class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.Vi
 
     public ChannelAdapter(Context context, IChannel channel) {
         mContext = context;
-        mChannel = channel;
+        setChannel(channel);
     }
 
     @NonNull
@@ -72,13 +68,13 @@ public final class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.Vi
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        if (mChannel == null || mChannel.getUsers() == null || position < 0 || position >= mChannel.getUsers().size()) {
-            return;
-        }
-        IUser user = mChannel.getUsers().get(position);
-        if (user == null) {
-            return;
-        }
+        if (mChannel == null || mChannel.getUsers() == null) return;
+        
+        // AMBIL USER DARI INDEKS YANG SUDAH DI-SORTING
+        int actualIndex = mSortedIndices.get(position);
+        IUser user = mChannel.getUsers().get(actualIndex);
+        
+        if (user == null) return;
 
         holder.userName.setText(user.getName());
         holder.stateIcon.setImageDrawable(getTalkStateDrawable(user));
@@ -86,113 +82,134 @@ public final class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.Vi
 
     @Override
     public int getItemCount() {
-        return (mChannel != null && mChannel.getUsers() != null) ? mChannel.getUsers().size() : 0;
+        return mSortedIndices.size();
     }
 
     @Override
     public long getItemId(int position) {
-        if (mChannel != null && mChannel.getUsers() != null && position >= 0 && position < mChannel.getUsers().size()) {
-            IUser user = mChannel.getUsers().get(position);
-            if (user != null) {
-                return user.getSession();
-            }
+        if (position < 0 || position >= mSortedIndices.size()) return RecyclerView.NO_ID;
+        
+        int actualIndex = mSortedIndices.get(position);
+        if (mChannel != null && mChannel.getUsers() != null && actualIndex < mChannel.getUsers().size()) {
+            IUser user = mChannel.getUsers().get(actualIndex);
+            if (user != null) return user.getSession();
         }
         return RecyclerView.NO_ID;
     }
 
-    Drawable getTalkStateDrawable(IUser user) {
-        if (mContext == null) {
-            return null;
-        }
-        if (user.isSelfDeafened()) {
-            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_deafened);
-        } else if (user.isDeafened()) {
-            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_deafened);
-        } else if (user.isSelfMuted()) {
-            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_muted);
-        } else if (user.isMuted()) {
-            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_muted);
-        } else if (user.isSuppressed()) {
-            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_suppressed);
-        } else if (user.getTalkState() == TalkState.TALKING
-                || user.getTalkState() == TalkState.SHOUTING
-                || user.getTalkState() == TalkState.WHISPERING) {
-            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_on);
-        } else {
-            Bitmap bitmap = mAvatarCache.get(user);
-            if (bitmap != null) {
-                return new CircleDrawable(mContext.getResources(), bitmap);
-            }
-        }
-        return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
-    }
-
+    /**
+     * Set channel baru DAN lakukan sorting virtual sekaligus
+     */
     public void setChannel(IChannel channel) {
         mChannel = channel;
+        updateSorting(); // Sort saat data baru masuk
         notifyDataSetChanged();
     }
 
     /**
-     * Immediately updates a user's display name and talk state icon on the visible view holder,
-     * bypassing RecyclerView rebind cycles and eliminating animation delays.
+     * METHOD RAHASIA: Melakukan sorting pada daftar indeks virtual
+     * Prioritas: 1. Talking/Shouting/Whispering -> 2. Nama A-Z
+     */
+    private void updateSorting() {
+        mSortedIndices.clear();
+        if (mChannel == null || mChannel.getUsers() == null) return;
+
+        List<? extends IUser> users = mChannel.getUsers();
+        for (int i = 0; i < users.size(); i++) {
+            mSortedIndices.add(i);
+        }
+
+        Collections.sort(mSortedIndices, (idx1, idx2) -> {
+            IUser u1 = users.get(idx1);
+            IUser u2 = users.get(idx2);
+            
+            boolean t1 = isTalking(u1);
+            boolean t2 = isTalking(u2);
+
+            // Yang bicara selalu di atas
+            if (t1 && !t2) return -1;
+            if (!t1 && t2) return 1;
+
+            // Jika status sama, urutkan nama A-Z
+            String n1 = u1 != null ? u1.getName() : "";
+            String n2 = u2 != null ? u2.getName() : "";
+            return n1.compareToIgnoreCase(n2);
+        });
+    }
+
+    /**
+     * Update state user secara real-time DENGAN RE-SORTING OTOMATIS
      */
     public void updateUserState(IUser user, RecyclerView view) {
-        if (mChannel == null || mChannel.getUsers() == null || user == null) {
-            return;
-        }
-        int index = mChannel.getUsers().indexOf(user);
-        if (index < 0) {
-            return;
-        }
-        if (view != null) {
-            ViewHolder vh = (ViewHolder) view.findViewHolderForAdapterPosition(index);
-            if (vh != null) {
-                if (vh.userName != null && user.getName() != null && !user.getName().contentEquals(vh.userName.getText())) {
-                    vh.userName.setText(user.getName());
+        if (mChannel == null || user == null) return;
+
+        // Cari posisi asli user di data server
+        int originalIndex = mChannel.getUsers().indexOf(user);
+        if (originalIndex < 0) return;
+
+        // Cek apakah user sedang terlihat di layar
+        ViewHolder vh = (view != null) ? (ViewHolder) view.findViewHolderForAdapterPosition(
+                mSortedIndices.indexOf(originalIndex)) : null;
+
+        if (vh != null) {
+            // Update visual langsung tanpa animasi pindah (lebih smooth untuk talking state)
+            vh.userName.setText(user.getName());
+            Drawable newState = getTalkStateDrawable(user);
+            Drawable current = vh.stateIcon.getDrawable();
+            
+            if (newState != null && current != null) {
+                ConstantState cs = (current.getCurrent() != null) ? 
+                        current.getCurrent().getConstantState() : null;
+                if (cs == null || !cs.equals(newState.getConstantState())) {
+                    vh.stateIcon.setImageDrawable(newState);
                 }
-                if (vh.stateIcon != null) {
-                    Drawable newState = getTalkStateDrawable(user);
-                    Drawable currentDrawable = vh.stateIcon.getDrawable();
-                    if (newState != null && currentDrawable != null) {
-                        Drawable currentInner = currentDrawable.getCurrent();
-                        ConstantState state = (currentInner != null) ? currentInner.getConstantState() : null;
-                        if (state == null || !state.equals(newState.getConstantState())) {
-                            vh.stateIcon.setImageDrawable(newState);
-                        }
-                    } else if (newState != null) {
-                        vh.stateIcon.setImageDrawable(newState);
-                    }
-                }
-                return;
+            } else if (newState != null) {
+                vh.stateIcon.setImageDrawable(newState);
             }
         }
-        notifyItemChanged(index);
+
+        // PENTING: Lakukan re-sorting agar user yang baru bicara naik ke atas
+        updateSorting();
+        notifyDataSetChanged(); 
     }
 
     public void notifyUserChanged(IUser user) {
-        if (mChannel == null || mChannel.getUsers() == null || user == null) {
-            return;
+        if (mChannel == null || user == null) return;
+        int originalIndex = mChannel.getUsers().indexOf(user);
+        if (originalIndex >= 0) {
+            updateSorting();
+            notifyDataSetChanged();
         }
-        int index = mChannel.getUsers().indexOf(user);
-        if (index >= 0) {
-            notifyItemChanged(index);
-        }
     }
 
-    public IChannel getChannel() {
-        return mChannel;
+    // Helper cek talking state
+    private boolean isTalking(IUser user) {
+        if (user == null) return false;
+        TalkState s = user.getTalkState();
+        return s == TalkState.TALKING || s == TalkState.SHOUTING || s == TalkState.WHISPERING;
     }
 
-    public void removeUser(int session) {
-        mAvatarCache.remove(session);
+    Drawable getTalkStateDrawable(IUser user) {
+        if (mContext == null || user == null) return null;
+        
+        if (user.isSelfDeafened()) return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_deafened);
+        if (user.isDeafened()) return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_deafened);
+        if (user.isSelfMuted()) return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_muted);
+        if (user.isMuted()) return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_muted);
+        if (user.isSuppressed()) return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_suppressed);
+        
+        if (isTalking(user)) return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_on);
+
+        Bitmap bitmap = mAvatarCache.get(user);
+        if (bitmap != null) return new CircleDrawable(mContext.getResources(), bitmap);
+        
+        return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
     }
 
-    public void clearAvatarCache() {
-        mAvatarCache.clear();
-    }
+    public IChannel getChannel() { return mChannel; }
+    public void removeUser(int session) { mAvatarCache.remove(session); }
+    public void clearAvatarCache() { mAvatarCache.clear(); }
 
     @VisibleForTesting
-    AvatarCache getAvatarCache() {
-        return mAvatarCache;
-    }
+    AvatarCache getAvatarCache() { return mAvatarCache; }
 }
