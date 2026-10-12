@@ -159,7 +159,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     // === LOGIKA DRAWABLE (SAMA PERSIS DENGAN CHANNELLISTADAPTER) ===
-    private Drawable getTalkStateDrawable(IUser user) {
+    public Drawable getTalkStateDrawable(IUser user) {
         if (user == null) {
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
         }
