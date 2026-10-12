@@ -128,7 +128,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         }
 
         // ✅ REFRESH OTOMATIS SAAT USER BARU MASUK
-        @Override
+
         public void onUserJoined(IUser user) {
             if (mSingleChContainer != null 
                 && mSingleChContainer.getVisibility() == View.VISIBLE
@@ -139,7 +139,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         }
 
         // ✅ REFRESH OTOMATIS SAAT USER KELUAR
-        @Override
+        
         public void onUserLeft(IUser user) {
             if (mSingleChContainer != null 
                 && mSingleChContainer.getVisibility() == View.VISIBLE
