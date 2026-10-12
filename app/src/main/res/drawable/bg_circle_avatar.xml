@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    
+    <!-- Warna border tipis (opsional, biar kelihatan batasnya) -->
+    <stroke 
+        android:width="2dp" 
+        android:color="#33FFFFFF" /> 
+        
+    <!-- Background transparan atau warna solid sesuai selera -->
+    <solid android:color="#00000000" />
+    
+</shape>
