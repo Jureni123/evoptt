@@ -57,7 +57,7 @@ import se.lublin.humla.util.VoiceTargetMode;
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
 import se.lublin.mumla.app.MumlaActivity;
-import se.lublin.mumla.service.MumlaService; 
+import se.lublin.mumla.service.MumlaService;
 import se.lublin.mumla.util.HumlaServiceFragment;
 
 public class ChannelFragment extends HumlaServiceFragment implements SharedPreferences.OnSharedPreferenceChangeListener, ChatTargetProvider {
@@ -106,7 +106,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 // UPDATE STAGE HEADER SECARA REAL-TIME
                 updateStageHeader(user);
 
-                // Update Adapter List User (Sorting dinamis nanti di adapter)
+                // Update Adapter List User
                 if (mSingleUserAdapter != null && mRvUserList != null) {
                     mSingleUserAdapter.updateUserState(user, mRvUserList);
                 }
@@ -125,6 +125,28 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                     refreshSingleChannelView();
                 }
             } catch (Exception e) { Log.d(TAG, "Err user state: " + e); }
+        }
+
+        // ✅ REFRESH OTOMATIS SAAT USER BARU MASUK
+        @Override
+        public void onUserJoined(IUser user) {
+            if (mSingleChContainer != null 
+                && mSingleChContainer.getVisibility() == View.VISIBLE
+                && getService() != null 
+                && getService().isConnected()) {
+                refreshSingleChannelView();
+            }
+        }
+
+        // ✅ REFRESH OTOMATIS SAAT USER KELUAR
+        @Override
+        public void onUserLeft(IUser user) {
+            if (mSingleChContainer != null 
+                && mSingleChContainer.getVisibility() == View.VISIBLE
+                && getService() != null 
+                && getService().isConnected()) {
+                refreshSingleChannelView();
+            }
         }
 
         @Override
@@ -259,7 +281,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } else {
             // MODE HENING: Sembunyikan nama speaker, kembalikan Logo Channel/Aplikasi
             mTvSpeakerName.setVisibility(View.GONE);
-            mImgMainAvatar.setImageResource(R.drawable.ic_launcher_foreground); // Ganti dengan logo channel jika ada
+            mImgMainAvatar.setImageResource(R.drawable.ic_launcher_foreground);
         }
     }
 
@@ -292,7 +314,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
     }
 
-    // === METODE LIST CHANNEL DIALOG (REKURSIF + USER COUNT) ===
+    // === METODE LIST CHANNEL DIALOG ===
     private void showChannelListDialog() {
         if (getService() == null || !getService().isConnected()) {
             Toast.makeText(requireContext(), "Belum connect", Toast.LENGTH_SHORT).show(); return;
@@ -332,7 +354,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         if (subs != null) for (IChannel s : subs) collectAllChannels(s, r);
     }
 
-    // === AUDIO BOTTOM SHEET (6 MODE) ===
+    // === AUDIO BOTTOM SHEET ===
     private void showAudioBottomSheet() {
         if (getService() == null || !getService().isConnected() || !isAdded()) return;
         BottomSheetDialog bs = new BottomSheetDialog(requireContext());
