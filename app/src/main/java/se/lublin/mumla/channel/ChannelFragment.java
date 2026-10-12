@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout Version (Auto-Refresh Fixed)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout Version (Final Auto-Refresh Fix)
  */
 package se.lublin.mumla.channel;
 
@@ -90,7 +90,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private View mBtnGlobalSet, mBtnAudioMenu, mBtnSessionMenu, mBtnListCh;
     private FrameLayout mPttContainer;
 
-    // Observer yang Sudah Diperbaiki untuk Auto-Refresh
+    // Observer yang Sudah Diperbaiki untuk Auto-Refresh Real-time
     private HumlaObserver mObserver = new HumlaObserver() {
         @Override
         public void onUserTalkStateUpdated(IUser user) {
@@ -125,7 +125,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 }
 
                 // 2. AUTO REFRESH LIST & HEADER SAAT ADA PERUBAHAN USER APAPUN
-                // FIX: HAPUS FILTER selfSession DI SINI AGAR USER JOIN/PART TERDETEKSI
+                // FIX: TIDAK ADA FILTER selfSession DI SINI AGAR USER JOIN/PART/MUTE TERDETEKSI OTOMATIS
                 if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
                     refreshSingleChannelView();
                 }
@@ -213,7 +213,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mImgMainAvatar = mHeaderSingleCh.findViewById(R.id.img_main_avatar);
             mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
 
-            // TEMPEL HEADER KE header_stage_container
+            // TEMPEL HEADER KE header_stage_container (BUKAN KE ROOT FRAME LAYOUT!)
             ViewGroup stageContainer = view.findViewById(R.id.header_stage_container);
             if (stageContainer != null && mHeaderSingleCh != null) {
                 stageContainer.addView(mHeaderSingleCh);
@@ -269,14 +269,22 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         }
     }
 
-    // === METODE REFRESH SINGLE CH VIEW (AUTO-REFRESH FIX) ===
+    // === METODE REFRESH SINGLE CH VIEW (FINAL FIX: AMBIL DATA FRESH DARI SESSION) ===
     private void refreshSingleChannelView() {
         if (getService() == null || !getService().isConnected() || mSingleUserAdapter == null) return;
         
         try {
             IHumlaSession session = getService().HumlaSession();
+            
+            // AMBIL CHANNEL FRESH DARI SESSION MENGGUNAKAN ID (MENIRU CHANNELLISTADAPTER)
             IChannel currentChannel = session.getSessionChannel();
             if (currentChannel == null) return;
+            
+            // Force ambil channel terbaru via ID biar datanya fresh & user join langsung masuk
+            IChannel freshChannel = session.getChannel(currentChannel.getId());
+            if (freshChannel != null) {
+                currentChannel = freshChannel;
+            }
 
             // Update Info Channel di Stage
             if (mTvChannelId != null) mTvChannelId.setText("CH " + currentChannel.getId());
@@ -290,12 +298,18 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             // Reset Stage ke Mode Hening saat refresh channel
             updateStageHeader(null);
 
-            // Update List User
+            // Ambil user list dari channel yang SUDAH DI-REFRESH
             List<? extends IUser> rawUsers = currentChannel.getUsers();
             List<IUser> users = rawUsers != null ? new ArrayList<>(rawUsers) : new ArrayList<>();
+            
+            // LOG DEBUG UNTUK VALIDASI DATA MASUK
+            Log.d(TAG, ">>> Refreshing list with FRESH data. Count: " + users.size());
+            
             mSingleUserAdapter.setUsers(users, currentChannel);
             
-        } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
+        } catch (Exception e) { 
+            Log.e(TAG, "Err refresh", e); 
+        }
     }
 
     // === METODE LIST CHANNEL DIALOG ===
