@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:visibility="gone" 
-    android:background="#121212"> 
+    android:background="#FF121212"> 
     
     <!-- WRAPPER VERTIKAL: HEADER DI ATAS, LIST DI BAWAH -->
     <LinearLayout
