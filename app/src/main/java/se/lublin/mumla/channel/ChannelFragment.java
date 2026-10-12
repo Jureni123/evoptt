@@ -288,16 +288,22 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         boolean isTalking = talkingUser != null && isTalkingState(talkingUser.getTalkState());
         
         if (isTalking) {
+            // LANGSUNG ISI SLOT YANG SUDAH ADA (TANPA UBAH LAYOUT!)
             mTvSpeakerName.setText(talkingUser.getName());
-            mTvSpeakerName.setVisibility(View.VISIBLE);
+            mTvSpeakerName.setVisibility(View.VISIBLE); // Atau setAlpha(1f) kalau mau fade
             
+            // Ganti Avatar Jadi Icon Talking
             Drawable userAvatar = mSingleUserAdapter != null ? 
                 mSingleUserAdapter.getTalkStateDrawable(talkingUser) : null;
             if (userAvatar != null) {
                 mImgMainAvatar.setImageDrawable(userAvatar);
             }
         } else {
-            mTvSpeakerName.setVisibility(View.GONE);
+            // KOSONGKAN SLOT (TAPI RUANGNYA TETAP ADA!)
+            mTvSpeakerName.setText("");
+            mTvSpeakerName.setVisibility(View.INVISIBLE); // Pakai INVISIBLE biar ruang tetap terjaga
+            
+            // Kembalikan Avatar Ke Logo Channel
             mImgMainAvatar.setImageResource(R.drawable.ic_launcher_foreground);
         }
     }
