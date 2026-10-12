@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View - Hello Live Style
+ * Modified for Mumla OLED Single Channel View - Safe Version
  */
 package se.lublin.mumla.channel;
 
@@ -42,21 +42,20 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
+        // Gunakan ID yang PASTI ADA di item_user_card.xml kamu saat ini
         ImageView imgAvatarState;
         TextView tvUsername;
-        TextView tvLevelBadge;       // BARU: Untuk "HM c786"
-        TextView tvParentChBadge;    // BARU: Untuk "CH 005"
+        TextView tvChannelBadge; 
         TextView tvLocationComment;
-        ImageView imgTalkingIndicator; // BARU: Icon mikrofon hijau
+        ImageView imgMoreOptions;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             imgAvatarState = itemView.findViewById(R.id.img_avatar_state);
             tvUsername = itemView.findViewById(R.id.tv_username);
-            tvLevelBadge = itemView.findViewById(R.id.tv_level_badge);
-            tvParentChBadge = itemView.findViewById(R.id.tv_parent_ch_badge);
+            tvChannelBadge = itemView.findViewById(R.id.tv_channel_badge);
             tvLocationComment = itemView.findViewById(R.id.tv_location_comment);
-            imgTalkingIndicator = itemView.findViewById(R.id.img_talking_indicator);
+            imgMoreOptions = itemView.findViewById(R.id.img_more_options);
         }
     }
 
@@ -79,48 +78,40 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         // 1. Set Nama User
         holder.tvUsername.setText(user.getName());
         
-        // 2. Set Badge Level (Simulasi/Placeholder)
-        // Karena IUser standar tidak punya field "level", kita bisa pakai Session ID atau Comment sebagai placeholder
-        // Nanti kalau ada API khusus level, tinggal ganti di sini.
-        String levelText = "HM " + Integer.toHexString(user.getSession()).substring(0, 4); 
-        holder.tvLevelBadge.setText(levelText);
-        holder.tvLevelBadge.setVisibility(View.VISIBLE);
-
-        // 3. Set Badge Channel Parent (Fitur Hello Live!)
-        // Cek apakah user berada di channel yang sama dengan current channel
-        if (mCurrentChannel != null && user.getChannelId() != mCurrentChannel.getId()) {
-            // Jika beda, tampilkan badge channel asalnya
-            // Catatan: IUser biasanya tidak langsung punya nama channel parent, 
-            // jadi kita butuh logic tambahan atau ambil dari session data jika tersedia.
-            // Untuk sementara, kita tampilkan ID channel-nya saja.
-            holder.tvParentChBadge.setText("CH " + user.getChannelId());
-            holder.tvParentChBadge.setVisibility(View.VISIBLE);
-        } else {
-            holder.tvParentChBadge.setVisibility(View.GONE);
+        // 2. Set Badge Channel (Kita pakai tvChannelBadge yang sudah ada)
+        // Tampilkan ID channel user jika berbeda dengan channel aktif (Fitur Parent CH)
+        try {
+            IChannel userChan = user.getChannel();
+            if (userChan != null && mCurrentChannel != null && userChan.getId() != mCurrentChannel.getId()) {
+                holder.tvChannelBadge.setText("CH " + userChan.getId());
+                holder.tvChannelBadge.setVisibility(View.VISIBLE);
+            } else {
+                holder.tvChannelBadge.setVisibility(View.GONE);
+            }
+        } catch (Exception e) {
+            holder.tvChannelBadge.setVisibility(View.GONE);
         }
 
-        // 4. Set Lokasi/Comment (Handle "null" agar rapi)
+        // 3. Set Lokasi/Comment (Handle "null" agar rapi)
         String comment = user.getComment();
-        if (comment != null && !comment.isEmpty() && !comment.equals("null")) {
+        if (comment != null && !comment.isEmpty() && !comment.equalsIgnoreCase("null")) {
             holder.tvLocationComment.setText(comment);
             holder.tvLocationComment.setVisibility(View.VISIBLE);
         } else {
             holder.tvLocationComment.setVisibility(View.GONE);
         }
 
-        // 5. Set State Icon / Avatar (Logic Lama Tetap Jalan)
+        // 4. Set State Icon / Avatar (Logic Lama Tetap Jalan)
         Drawable stateDrawable = getTalkStateDrawable(user);
         holder.imgAvatarState.setImageDrawable(stateDrawable);
-
-        // 6. Indikator Talking Terpisah (Icon Mikrofon Hijau)
-        boolean isTalking = (user.getTalkState() == TalkState.TALKING || 
-                             user.getTalkState() == TalkState.SHOUTING || 
-                             user.getTalkState() == TalkState.WHISPERING);
-        holder.imgTalkingIndicator.setVisibility(isTalking ? View.VISIBLE : View.INVISIBLE);
 
         // Setup Click Listener
         holder.itemView.setOnClickListener(v -> {
             if (mListener != null) mListener.onUserClick(user);
+        });
+
+        holder.imgMoreOptions.setOnClickListener(v -> {
+            if (mListener != null) mListener.onMoreClick(user, v);
         });
     }
 
@@ -131,10 +122,15 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
 
     /**
      * Mengupdate daftar user & channel saat ini.
+     * PARAMETER CHANNEL DIBUAT OPSIONAL AGAR KOMPATIBEL DENGAN KODE LAMA
      */
+    public void setUsers(List<IUser> users) {
+        setUsers(users, null);
+    }
+
     public void setUsers(List<IUser> users, IChannel currentChannel) {
         mUsers.clear();
-        mCurrentChannel = currentChannel; // Simpan referensi channel aktif
+        mCurrentChannel = currentChannel; 
         if (users != null) {
             mUsers.addAll(users);
         }
@@ -153,12 +149,6 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             // Update Avatar/State Icon
             Drawable newState = getTalkStateDrawable(user);
             vh.imgAvatarState.setImageDrawable(newState);
-            
-            // Update Indikator Talking
-            boolean isTalking = (user.getTalkState() == TalkState.TALKING || 
-                                 user.getTalkState() == TalkState.SHOUTING || 
-                                 user.getTalkState() == TalkState.WHISPERING);
-            vh.imgTalkingIndicator.setVisibility(isTalking ? View.VISIBLE : View.INVISIBLE);
         } else {
             notifyItemChanged(index);
         }
