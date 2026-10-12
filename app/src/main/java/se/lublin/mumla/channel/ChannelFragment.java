@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout Version (Hybrid Auto-Refresh Fix)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout Version (FINAL Auto-Refresh Fix)
  */
 package se.lublin.mumla.channel;
 
@@ -90,48 +90,82 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private View mBtnGlobalSet, mBtnAudioMenu, mBtnSessionMenu, mBtnListCh;
     private FrameLayout mPttContainer;
 
-    // Observer Hybrid: Gabungan Logic Asli + Logic Refresh Baru
+    // ✅ OBSERVER SUPER LENGKAP: MENDENGARKAN SEMUA EVENT JOIN/PART/STATE DARI LIBRARY HUMLA
     private HumlaObserver mObserver = new HumlaObserver() {
+        
+        // 1. EVENT SAAT USER CONNECT KE SERVER (LOGIN PERTAMA KALI)
+        @Override
+        public void onUserConnected(IUser user) {
+            Log.d(TAG, ">>> [EVENT] User Connected: " + (user != null ? user.getName() : "Unknown"));
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
+        }
+
+        // 2. EVENT SAAT USER PINDAH CHANNEL / MASUK KE CHANNEL INI
+        @Override
+        public void onUserJoinedChannel(IUser user, IChannel newChannel, IChannel oldChannel) {
+            Log.d(TAG, ">>> [EVENT] User Joined Channel: " + (user != null ? user.getName() : "Unknown"));
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
+        }
+
+        // 3. EVENT SAAT USER KELUAR / DISCONNECT (INI YANG MENGHILANGKAN GHOST USER!)
+        @Override
+        public void onUserRemoved(IUser user, String reason) {
+            Log.d(TAG, ">>> [EVENT] User Removed: " + (user != null ? user.getName() : "Unknown") + " | Reason: " + reason);
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
+        }
+
+        // 4. EVENT SAAT STATE CHANNEL BERUBAH (JUMLAH USER, DESKRIPSI, DLL)
+        @Override
+        public void onChannelStateUpdated(IChannel channel) {
+            Log.d(TAG, ">>> [EVENT] Channel State Updated");
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
+        }
+
+        // 5. EVENT SAAT USER MUTE/DEAFEN/BERUBAH STATE (LOGIC ASLI TETAP JALAN)
+        @Override
+        public void onUserStateUpdated(IUser user) {
+            if (getService() != null && getService().isConnected()) {
+                try {
+                    int selfSession = getService().HumlaSession().getSessionId();
+                    if (user != null && user.getSession() == selfSession) {
+                        configureInput();
+                    }
+                } catch (Exception e) {}
+            }
+            // Tetap refresh juga buat jaga-jaga jika state update membawa data user baru
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
+        }
+
+        // 6. EVENT TALKING STATE (UNTUK STAGE HEADER & ADAPTER ICON)
         @Override
         public void onUserTalkStateUpdated(IUser user) {
             if (getService() == null || !getService().isConnected()) return;
             try {
                 int selfSession = getService().HumlaSession().getSessionId();
                 
-                // LOGIC ASLI: Update PTT Button State (Hanya untuk diri sendiri)
+                // Update PTT Button State (Hanya untuk diri sendiri)
                 if (user != null && user.getSession() == selfSession && mTalkButton != null) {
                     mTalkButton.setActivated(isTalkingState(user.getTalkState()));
                 }
 
-                // LOGIC BARU: UPDATE STAGE HEADER SECARA REAL-TIME
+                // UPDATE STAGE HEADER REAL-TIME
                 updateStageHeader(user);
 
-                // LOGIC BARU: Update Adapter List User (Sorting dinamis & talking state)
+                // Update Adapter List User (Talking Icon)
                 if (mSingleUserAdapter != null && mRvUserList != null) {
                     mSingleUserAdapter.updateUserState(user, mRvUserList);
                 }
             } catch (Exception e) { Log.d(TAG, "Err talk state: " + e); }
-        }
-
-        @Override
-        public void onUserStateUpdated(IUser user) {
-            if (getService() == null || !getService().isConnected()) return;
-            try {
-                int selfSession = getService().HumlaSession().getSessionId();
-                
-                // LOGIC ASLI: Update Input Config HANYA JIKA DIRI SENDIRI YANG BERUBAH
-                if (user != null && user.getSession() == selfSession) {
-                    configureInput();
-                }
-
-                // LOGIC BARU (PENGGANTI OTAK ADAPTER LAMA): 
-                // AUTO REFRESH LIST & HEADER SAAT ADA PERUBAHAN USER APAPUN
-                // Karena SingleChannelUserAdapter tidak punya otak auto-detect,
-                // Fragment harus mengambil alih tugas ini.
-                if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
-                    refreshSingleChannelView();
-                }
-            } catch (Exception e) { Log.d(TAG, "Err user state: " + e); }
         }
 
         @Override
@@ -268,7 +302,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         }
     }
 
-    // === METODE REFRESH SINGLE CH VIEW (HYBRID FIX: AMBIL DATA FRESH DARI SESSION) ===
+    // === METODE REFRESH SINGLE CH VIEW (FIXED: AMBIL DATA FRESH DARI SESSION) ===
     private void refreshSingleChannelView() {
         if (getService() == null || !getService().isConnected() || mSingleUserAdapter == null) return;
         
