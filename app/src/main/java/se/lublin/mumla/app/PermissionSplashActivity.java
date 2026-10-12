@@ -1,42 +1,14 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Modified for Mumla OLED - Fixed Permission Handling for Android 13+
  */
-
-/*
- * ============================================================================
- * MODIFIED & OPTIMIZED BY: OFAID (Juren123)
- * Project: Mumla OLED - Optimized for AMOLED displays & privacy
- * Repository: github.com/Juren123/evoptt
- * 
- * Changes:
- * - Fixed Overlay Permission Intent to use hardcoded package name for accuracy.
- * - Ensures users are directed straight to Mumla OLED settings, not the general list.
- * - Simplified dialog text for better understanding by non-tech-savvy users.
- * 
- * Original Author: Andrew Comminos
- * License: GPL-3.0
- * ============================================================================
- */
-
 package se.lublin.mumla.app;
 
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Button;
@@ -50,6 +22,9 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import se.lublin.mumla.R; 
 
 public class PermissionSplashActivity extends AppCompatActivity {
@@ -57,14 +32,7 @@ public class PermissionSplashActivity extends AppCompatActivity {
     private static final int REQ_CODE_OVERLAY = 201;
 
     // ✅ HARDKODE NAMA PAKET SESUAI PROPERTI APK & BUILD.GRADLE
-    // Ini memastikan "GPS" selalu menunjuk ke Mumla OLED Debug/Release, bukan aplikasi lain
     private static final String TARGET_PACKAGE_NAME = "se.lublin.mumla.oled15";
-
-    // ✅ DAFTAR IZIN STANDAR (Mic & Storage)
-    private static final String[] PERMS_STANDARD = {
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,18 +50,58 @@ public class PermissionSplashActivity extends AppCompatActivity {
         tvDesc.setText("Aplikasi butuh akses:\n1. Mic (untuk PTT & Voice)\n2. Storage (untuk Visualizer/Memo)\n3. Overlay (agar tombol PTT bisa muncul di layar).\n\nKlik tombol di bawah untuk mengatur izin.");
         
         Button btnGrant = findViewById(R.id.btn_grant);
-        btnGrant.setOnClickListener(v -> 
-            ActivityCompat.requestPermissions(this, PERMS_STANDARD, REQ_CODE_STANDARD)
-        );
+        btnGrant.setOnClickListener(v -> requestNecessaryPermissions());
     }
 
-    // ✅ CEK SEMUA IZIN (Standar + Overlay)
+    // ✅ METODA BARU: REQUEST PERMISSION YANG AMAN UNTUK SEMUA VERSI ANDROID
+    private void requestNecessaryPermissions() {
+        List<String> permissionsNeeded = new ArrayList<>();
+
+        // 1. RECORD_AUDIO (WAJIB UNTUK SEMUA VERSI)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+                != PackageManager.PERMISSION_GRANTED) {
+            permissionsNeeded.add(Manifest.permission.RECORD_AUDIO);
+        }
+
+        // 2. STORAGE (BEDAKAN BERDASARKAN VERSI ANDROID)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // ANDROID 13+ (API 33): PAKAI IZIN MEDIA SPESIFIK
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.READ_MEDIA_IMAGES);
+            }
+        } else {
+            // ANDROID 12 KE BAWAH (API 32-): PAKAI IZIN LAMA
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        }
+
+        // REQUEST SEMUA SEKALIGUS
+        if (!permissionsNeeded.isEmpty()) {
+            ActivityCompat.requestPermissions(this, 
+                    permissionsNeeded.toArray(new String[0]), 
+                    REQ_CODE_STANDARD);
+        } else {
+            // Semua izin standar sudah granted, lanjut cek overlay
+            checkAndRequestOverlayPermission();
+        }
+    }
+
+    // ✅ CEK SEMUA IZIN (Standar + Overlay) DENGAN LOGIC BRANCHING
     private boolean hasAllPermissions() {
         boolean audioOk = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
                           == PackageManager.PERMISSION_GRANTED;
                           
-        boolean storageOk = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
-                            == PackageManager.PERMISSION_GRANTED;
+        boolean storageOk;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            storageOk = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) 
+                        == PackageManager.PERMISSION_GRANTED;
+        } else {
+            storageOk = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+                        == PackageManager.PERMISSION_GRANTED;
+        }
                             
         // Cek izin Overlay (Special Permission)
         boolean overlayOk = Settings.canDrawOverlays(this);
@@ -114,15 +122,23 @@ public class PermissionSplashActivity extends AppCompatActivity {
         for (int i = 0; i < perms.length; i++) {
             if (Manifest.permission.RECORD_AUDIO.equals(perms[i])) {
                 audioGranted = (results[i] == PackageManager.PERMISSION_GRANTED);
-            } else if (Manifest.permission.READ_EXTERNAL_STORAGE.equals(perms[i])) {
+            } 
+            // CEK KEDUA IZIN STORAGE (LAMA & BARU)
+            else if (Manifest.permission.READ_EXTERNAL_STORAGE.equals(perms[i]) || 
+                     Manifest.permission.READ_MEDIA_IMAGES.equals(perms[i])) {
                 storageGranted = (results[i] == PackageManager.PERMISSION_GRANTED);
             }
         }
 
-        // Verifikasi ulang status storage via checkSelfPermission (Fallback untuk Android 9-10)
+        // Verifikasi ulang status storage via checkSelfPermission (Fallback)
         if (!storageGranted) {
-            storageGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
-                             == PackageManager.PERMISSION_GRANTED;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                storageGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) 
+                                 == PackageManager.PERMISSION_GRANTED;
+            } else {
+                storageGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+                                 == PackageManager.PERMISSION_GRANTED;
+            }
         }
 
         if (audioGranted && storageGranted) {
