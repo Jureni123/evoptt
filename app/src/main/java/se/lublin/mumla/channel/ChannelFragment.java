@@ -112,10 +112,29 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 int selfSession = getService().HumlaSession().getSessionId();
                 if (user != null && user.getSession() == selfSession) configureInput();
 
+                // Refresh daftar user saat ada perubahan — otomatis tanpa perlu keluar masuk
                 if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
                     refreshSingleChannelView();
                 }
             } catch (Exception e) { Log.d(TAG, "Err user state: " + e); }
+        }
+
+        @Override
+        public void onUserJoined(IUser user) {
+            super.onUserJoined(user);
+            // Langsung refresh saat ada user baru masuk
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
+        }
+
+        @Override
+        public void onUserLeft(IUser user) {
+            super.onUserLeft(user);
+            // Langsung refresh saat ada user keluar
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
         }
 
         @Override
