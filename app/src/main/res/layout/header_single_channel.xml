@@ -7,14 +7,14 @@
     android:paddingTop="16dp"
     android:paddingBottom="12dp">
 
-    <!-- CONTAINER UTAMA VERTIKAL -->
+    <!-- CONTAINER UTAMA VERTIKAL (Hanya untuk elemen statis) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <!-- BARIS 1: ID + NAMA CHANNEL -->
+        <!-- BARIS 1: ID + NAMA CHANNEL (Horizontal biar hemat tinggi) -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -58,7 +58,7 @@
             android:scaleType="centerInside"
             android:background="@drawable/bg_circle_avatar_light"/> 
 
-        <!-- DESKRIPSI -->
+        <!-- DESKRIPSI (Kecil & Ringkas) -->
         <TextView
             android:id="@+id/tv_channel_desc"
             android:layout_width="match_parent"
@@ -127,7 +127,7 @@
             
     </LinearLayout>
 
-    <!-- NAMA SPEAKER ON-AIR (HIJAU TEAL AGAR TERBACA DI BACKGROUND TERANG) -->
+    <!-- NAMA SPEAKER ON-AIR (RELATIVE OVERLAY - TIDAK MENDORONG!) -->
     <TextView
         android:id="@+id/tv_speaker_name"
         android:layout_width="wrap_content"
@@ -138,6 +138,21 @@
         android:textStyle="bold"
         android:layout_gravity="center" 
         android:visibility="gone"
+        android:elevation="4dp"/>
+
+    <!-- ✅ TOMBOL EDIT INFO CHANNEL (POJOK KANAN ATAS - HANYA ADMIN) -->
+    <ImageButton
+        android:id="@+id/btn_edit_channel_info"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end" 
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:src="@drawable/ic_edit_note" 
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:tint="#0056B3" 
+        android:contentDescription="Edit Informasi Channel"
+        android:visibility="gone" 
         android:elevation="4dp"/>
 
 </FrameLayout>
