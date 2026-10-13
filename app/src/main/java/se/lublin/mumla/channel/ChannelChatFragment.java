@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Hybrid Announcement System (Public Sync + Clean Chat)
+ * By Jureni123 Modified for Mumla OLED - Unified Parser (Announcement + Channel Info)
  */
 package se.lublin.mumla.channel;
 
@@ -59,6 +59,8 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,7 +82,6 @@ import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IMessage;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.User;
-import se.lublin.humla.net.Permissions;
 import se.lublin.humla.util.HumlaDisconnectedException;
 import se.lublin.humla.util.HumlaObserver;
 import se.lublin.humla.util.IHumlaObserver;
@@ -97,53 +98,80 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
 
     private static final Pattern LINK_PATTERN = Pattern.compile("(https?://\\S+)");
     
-    // ✅ KONSTANTA ANNOUNCEMENT PARSER
+    // ✅ KONSTANTA PARSER UNIFIED
     private static final String ANNOUNCE_PREFIX = "!announce ";
-    private static final int MAX_ANNOUNCE_LENGTH = 200;
+    private static final String INFO_PREFIX = "::INFO::";
 
     private IHumlaObserver mServiceObserver = new HumlaObserver() {
 
         @Override
         public void onMessageLogged(IMessage message) {
-            // ✅ INTERCEPT DI GERBANG MASUK SEBELUM ADAPTER CHAT
             String body = message.getMessage();
-            
-            // Cek apakah ini pesan announcement berdasarkan prefix
-            if (body != null && body.startsWith(ANNOUNCE_PREFIX)) {
+            if (body == null) return;
+
+            // ============================================================
+            // 1. PARSER CHANNEL INFO (::INFO::{...})
+            // ============================================================
+            if (body.startsWith(INFO_PREFIX)) {
+                try {
+                    String jsonPart = body.substring(INFO_PREFIX.length());
+                    JSONObject meta = new JSONObject(jsonPart);
+                    
+                    int targetChId = meta.optInt("id", -1);
+                    IChannel currentCh = getService().HumlaSession().getSessionChannel();
+                    
+                    if (currentCh != null && currentCh.getId() == targetChId) {
+                        String content = meta.optString("c", "");
+                        
+                        // Bridge ke Parent Fragment untuk update UI Header
+                        Fragment parent = getParentFragment();
+                        if (parent instanceof ChannelFragment) {
+                            ((ChannelFragment) parent).updateChannelInfo(content);
+                        }
+                        
+                        // Simpan cache lokal untuk persistensi
+                        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                        prefs.edit().putString("channel_info_ch_" + targetChId, jsonPart).apply();
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Invalid info JSON", e);
+                }
                 
-                // Ekstrak teks murni setelah prefix "!announce "
+                // EARLY RETURN: Jangan tampilkan di chat history
+                return; 
+            }
+
+            // ============================================================
+            // 2. PARSER ANNOUNCEMENT (!announce ...)
+            // ============================================================
+            if (body.startsWith(ANNOUNCE_PREFIX)) {
                 String announcementText = body.substring(ANNOUNCE_PREFIX.length()).trim();
                 
-                // Ambil ID channel target secara aman
                 int channelId = -1;
                 try {
-                    // Fallback paling stabil: gunakan channel sesi aktif saat ini
                     channelId = getService().HumlaSession().getSessionChannel().getId();
                 } catch (Exception e) { 
                     Log.w(TAG, "Gagal mengambil channel ID, skip announcement");
                     return; 
                 }
 
-                // ✅ PROSES UNTUK SEMUA USER (ADMIN & BIASA) TANPA VALIDASI ACL
                 if (channelId != -1) {
-                    // Bridge ke Parent Fragment untuk update UI Overlay Header
                     Fragment parent = getParentFragment();
                     if (parent instanceof ChannelFragment) {
                         ((ChannelFragment) parent).notifyAnnouncement(channelId, announcementText, message.getActorName());
                     }
                     
-                    // Simpan cache lokal untuk persistensi setelah restart/reconnect
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                     prefs.edit().putString("announcement_ch_" + channelId, announcementText).apply();
                 }
                 
-                // ✅ EARLY RETURN: HENTIKAN EKSEKUSI DI SINI
-                // Pesan TIDAK AKAN pernah masuk ke addChatMessage()
-                // Chat history tetap bersih seperti Opsi B (Metadata Server)
+                // EARLY RETURN: Jangan tampilkan di chat history
                 return; 
             }
             
-            // Jika bukan announcement, lanjutkan flow chat normal
+            // ============================================================
+            // 3. CHAT NORMAL (Jika bukan info atau announcement)
+            // ============================================================
             addChatMessage(new IChatMessage.TextMessage(message), true);
         }
 
@@ -464,11 +492,6 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
     public void onChatTargetSelected(ChatTargetProvider.ChatTarget target) {
         updateChatTargetText(target);
     }
-
-    // ========================================================================
-    // ✅ METHOD LAMA DIHAPUS: isValidAnnouncement & handleAnnouncement
-    // LOGIKA SUDAH DIPINDAH KE DALAM onMessageLogged DI ATAS
-    // ========================================================================
 
     private static class ChannelChatAdapter extends ArrayAdapter<IChatMessage> {
         private final MumbleImageGetter mImageGetter;
