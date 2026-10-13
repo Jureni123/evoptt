@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Channel Info (Clean Chat Version)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Channel Info + Auto-Resend on Join
  */
 package se.lublin.mumla.channel;
 
@@ -120,10 +120,39 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
+        // ✅ LOGIC AUTO-RESEND INFO UNTUK USER BARU
         @Override
         public void onUserJoinedChannel(IUser user, IChannel newChannel, IChannel oldChannel) {
-            Log.d(TAG, ">>> [EVENT] User Joined Channel");
-            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
+            Log.d(TAG, ">>> [EVENT] User Joined: " + user.getName());
+            
+            try {
+                IHumlaSession session = getService().HumlaSession();
+                
+                // Pastikan user yang join BUKAN diri sendiri & server terhubung
+                if (user.getSession() != session.getSessionId() && getService().isConnected()) {
+                    
+                    // Ambil info terakhir dari cache lokal admin
+                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                    String cachedJson = prefs.getString("channel_info_ch_" + newChannel.getId(), null);
+                    
+                    // Jika ada info tersimpan, kirim ulang via protokol chat
+                    if (cachedJson != null && !cachedJson.isEmpty()) {
+                        // Format pesan harus sesuai parser (::INFO:: + JSON)
+                        String messageToSend = INFO_PREFIX + cachedJson;
+                        
+                        session.sendChannelTextMessage(newChannel.getId(), messageToSend, false);
+                        
+                        Log.d(TAG, "Auto-resend info triggered for: " + user.getName());
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error auto-resending info", e);
+            }
+
+            // Refresh view seperti biasa agar list user update
+            if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+                refreshSingleChannelView();
+            }
         }
 
         @Override
