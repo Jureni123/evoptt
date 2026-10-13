@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout Version (FINAL Auto-Refresh Fix)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout Version (FINAL Auto-Refresh Fix + Instant Sort)
  */
 package se.lublin.mumla.channel;
 
@@ -161,7 +161,8 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 // UPDATE STAGE HEADER REAL-TIME
                 updateStageHeader(user);
 
-                // Update Adapter List User (Talking Icon)
+                // INSTANT SORT TANPA ANIMASI: 
+                // Adapter sekarang pakai notifyDataSetChanged() biar user "teleport" ke atas
                 if (mSingleUserAdapter != null && mRvUserList != null) {
                     mSingleUserAdapter.updateUserState(user, mRvUserList);
                 }
@@ -227,6 +228,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mRvUserList = view.findViewById(R.id.rv_user_list);
         
         if (mRvUserList != null) {
+            // ✅ MATIKAN ANIMATOR DEFAULT AGAR SORTING TERASA INSTAN TANPA GESER
+            mRvUserList.setItemAnimator(null); 
+            
             mRvUserList.setLayoutManager(new LinearLayoutManager(requireContext()));
             mSingleUserAdapter = new SingleChannelUserAdapter(requireContext());
             mSingleUserAdapter.setOnUserClickListener(new SingleChannelUserAdapter.OnUserClickListener() {
@@ -290,7 +294,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         if (isTalking) {
             // LANGSUNG ISI SLOT YANG SUDAH ADA (TANPA UBAH LAYOUT!)
             mTvSpeakerName.setText(talkingUser.getName());
-            mTvSpeakerName.setVisibility(View.VISIBLE); // Atau setAlpha(1f) kalau mau fade
+            mTvSpeakerName.setVisibility(View.VISIBLE);
             
             // Ganti Avatar Jadi Icon Talking
             Drawable userAvatar = mSingleUserAdapter != null ? 
@@ -301,7 +305,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } else {
             // KOSONGKAN SLOT (TAPI RUANGNYA TETAP ADA!)
             mTvSpeakerName.setText("");
-            mTvSpeakerName.setVisibility(View.INVISIBLE); // Pakai INVISIBLE biar ruang tetap terjaga
+            mTvSpeakerName.setVisibility(View.INVISIBLE);
             
             // Kembalikan Avatar Ke Logo Channel
             mImgMainAvatar.setImageResource(R.drawable.ic_launcher_foreground);
@@ -315,7 +319,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         try {
             IHumlaSession session = getService().HumlaSession();
             
-            // AMBIL CHANNEL FRESH DARI SESSION MENGGUNAKAN ID (MENIRU CHANNELLISTADAPTER)
+            // AMBIL CHANNEL FRESH DARI SESSION MENGGUNAKAN ID
             IChannel currentChannel = session.getSessionChannel();
             if (currentChannel == null) return;
             
