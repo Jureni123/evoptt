@@ -1,9 +1,10 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Smart Admin Announcement Input (Senior Friendly)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Smart Admin Announcement (Auto-Hide Fix)
  */
 package se.lublin.mumla.channel;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
@@ -18,6 +19,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -234,7 +236,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mEtAdminAnnounce = mHeaderSingleCh.findViewById(R.id.et_admin_announce);
             mBtnSendAnnounce = mHeaderSingleCh.findViewById(R.id.btn_send_announce);
 
-            // HANDLE KIRIM PENGUMUMAN LANGSUNG (TANPA SPAM CHAT)
+            // HANDLE KIRIM PENGUMUMAN LANGSUNG (DENGAN AUTO-HIDE FIX)
             mBtnSendAnnounce.setOnClickListener(v -> {
                 String text = mEtAdminAnnounce.getText().toString().trim();
                 if (!text.isEmpty() && getService() != null && getService().isConnected()) {
@@ -253,6 +255,14 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                             // 3. KOSONGKAN INPUT & FEEDBACK
                             mEtAdminAnnounce.setText("");
                             Toast.makeText(requireContext(), "Pengumuman diperbarui!", Toast.LENGTH_SHORT).show();
+
+                            // ✅ FIX KRUSIAL: SEMBUNYIKAN KOTAK INPUT & KEYBOARD SETELAH KIRIM
+                            mAdminInputContainer.setVisibility(View.GONE);
+                            
+                            InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                            if (imm != null && mEtAdminAnnounce.getWindowToken() != null) {
+                                imm.hideSoftInputFromWindow(mEtAdminAnnounce.getWindowToken(), 0);
+                            }
                         }
                     } catch (Exception e) { Log.e(TAG, "Send announce failed", e); }
                 }
@@ -329,7 +339,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             updateStageHeader(null);
             loadCachedAnnouncement(currentChannel);
             
-            // ✅ CEK PERMISSION ADMIN OTOMATIS SETIAP REFRESH
+            // CEK PERMISSION ADMIN OTOMATIS SETIAP REFRESH (UNTUK MENAMPILKAN INPUT BOX)
             checkAndShowAdminInput(currentChannel);
 
             List<? extends IUser> rawUsers = currentChannel.getUsers();
@@ -374,9 +384,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } catch (Exception e) { Log.e(TAG, "Notify announcement failed", e); }
     }
 
-    // === LOAD CACHE ANNOUNCEMENT ===
+    // === LOAD CACHE ANNOUNCEMENT (PUBLIK - TANPA CEK PERMISSION) ===
     private void loadCachedAnnouncement(IChannel channel) {
         if (channel == null || mTvAnnouncementOverlay == null) return;
+        
+        // LANGSUNG LOAD DARI CACHE UNTUK SEMUA USER (PUBLIK)
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         String cached = prefs.getString("announcement_ch_" + channel.getId(), null);
         
