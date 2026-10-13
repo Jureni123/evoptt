@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    
+    <!-- Background Putih Bersih -->
+    <solid android:color="#FFFFFF"/>
+    
+    <!-- Border Abu-abu Tipis Agar Terlihat Jelas di Background Terang -->
+    <stroke 
+        android:width="2dp" 
+        android:color="#CFD8DC"/>
+        
+</shape>
