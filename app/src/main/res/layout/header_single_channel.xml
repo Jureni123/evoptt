@@ -72,8 +72,7 @@
             android:maxLines="2"
             android:ellipsize="end"/>
 
-        <!-- ✅ ANNOUNCEMENT OVERLAY BOARD (BARU DITAMBAHKAN) -->
-        <!-- Muncul transparan di bawah deskripsi saat admin kirim !announce -->
+        <!-- ✅ ANNOUNCEMENT OVERLAY BOARD -->
         <TextView
             android:id="@+id/tv_announcement_overlay"
             android:layout_width="match_parent"
@@ -92,11 +91,47 @@
             android:shadowDx="0"
             android:shadowDy="1"
             android:shadowRadius="2"/>
+
+        <!-- ✅ SMART ADMIN INPUT (SENIOR FRIENDLY - PUTIH CERAH) -->
+        <!-- Muncul otomatis hanya untuk user yang punya permission Admin -->
+        <LinearLayout
+            android:id="@+id/admin_input_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#FFFFFF"
+            android:padding="8dp"
+            android:layout_marginTop="8dp"
+            android:elevation="4dp"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/et_admin_announce"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:hint="Ketik pengumuman..."
+                android:textColor="#000000"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:background="@android:color/transparent"
+                android:maxLines="1"
+                android:inputType="text"/>
+
+            <ImageButton
+                android:id="@+id/btn_send_announce"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_action_send"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="#000000"
+                android:contentDescription="Kirim Pengumuman"/>
+        </LinearLayout>
             
     </LinearLayout>
 
     <!-- NAMA SPEAKER ON-AIR (RELATIVE OVERLAY - TIDAK MENDORONG!) -->
-    <!-- Posisinya mutlak di tengah-tengah container, menumpuk di atas layout lain -->
     <TextView
         android:id="@+id/tv_speaker_name"
         android:layout_width="wrap_content"
