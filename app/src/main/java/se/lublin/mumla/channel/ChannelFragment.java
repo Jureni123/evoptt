@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Smart Admin Announcement (Long Press Trigger)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Announcement System (Server Sync)
  */
 package se.lublin.mumla.channel;
 
@@ -259,7 +259,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 return false; // Bukan admin atau error
             });
 
-            // HANDLE KIRIM PENGUMUMAN LANGSUNG (DENGAN AUTO-HIDE FIX)
+            // ✅ HANDLE KIRIM PENGUMUMAN HYBRID SYSTEM (SERVER SYNC + AUTO-HIDE)
             mBtnSendAnnounce.setOnClickListener(v -> {
                 String text = mEtAdminAnnounce.getText().toString().trim();
                 if (!text.isEmpty() && getService() != null && getService().isConnected()) {
@@ -268,26 +268,31 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                         IChannel currentCh = session.getSessionChannel();
                         
                         if (currentCh != null) {
-                            // 1. UPDATE OVERLAY LANGSUNG
+                            // LANGKAH 1: KIRIM KE SERVER VIA PROTOKOL CHAT STANDAR
+                            // Prefix !announce digunakan sebagai penanda khusus bagi parser penerima
+                            session.sendChannelTextMessage(currentCh.getId(), "!announce " + text, false);
+                            
+                            // LANGKAH 2: UPDATE OVERLAY ADMIN LANGSUNG (BIAR INSTAN TANPA TUNGGU LOOPBACK)
                             notifyAnnouncement(currentCh.getId(), text, "Admin");
                             
-                            // 2. SIMPAN KE CACHE PERMANEN
+                            // LANGKAH 3: SIMPAN CACHE LOKAL ADMIN UNTUK PERSISTENSI
                             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                             prefs.edit().putString("announcement_ch_" + currentCh.getId(), text).apply();
                             
-                            // 3. KOSONGKAN INPUT & FEEDBACK
+                            // LANGKAH 4: AUTO-HIDE & RESET UI AGAR TAMPILAN BERSIH
                             mEtAdminAnnounce.setText("");
-                            Toast.makeText(requireContext(), "Pengumuman diperbarui!", Toast.LENGTH_SHORT).show();
-
-                            // ✅ FIX KRUSIAL: SEMBUNYIKAN KOTAK INPUT & KEYBOARD SETELAH KIRIM
-                            mAdminInputContainer.setVisibility(View.GONE);
+                            Toast.makeText(requireContext(), "Pengumuman disebar!", Toast.LENGTH_SHORT).show();
                             
+                            mAdminInputContainer.setVisibility(View.GONE);
                             InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(Context.INPUT_METHOD_SERVICE);
                             if (imm != null && mEtAdminAnnounce.getWindowToken() != null) {
                                 imm.hideSoftInputFromWindow(mEtAdminAnnounce.getWindowToken(), 0);
                             }
                         }
-                    } catch (Exception e) { Log.e(TAG, "Send announce failed", e); }
+                    } catch (Exception e) { 
+                        Log.e(TAG, "Send announce failed", e); 
+                        Toast.makeText(requireContext(), "Gagal mengirim pengumuman", Toast.LENGTH_SHORT).show();
+                    }
                 }
             });
 
