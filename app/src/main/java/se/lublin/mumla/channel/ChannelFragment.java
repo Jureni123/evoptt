@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Smart Admin Announcement (Auto-Hide Fix)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Smart Admin Announcement (Long Press Trigger)
  */
 package se.lublin.mumla.channel;
 
@@ -89,7 +89,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private ImageView mImgMainAvatar;
     private TextView mTvAnnouncementOverlay;
 
-    // ✅ VARIABEL SMART ADMIN INPUT (SENIOR FRIENDLY)
+    // ✅ VARIABEL SMART ADMIN INPUT (LONG PRESS TRIGGER)
     private LinearLayout mAdminInputContainer;
     private EditText mEtAdminAnnounce;
     private ImageButton mBtnSendAnnounce;
@@ -236,6 +236,29 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mEtAdminAnnounce = mHeaderSingleCh.findViewById(R.id.et_admin_announce);
             mBtnSendAnnounce = mHeaderSingleCh.findViewById(R.id.btn_send_announce);
 
+            // ✅ LONG PRESS LISTENER: MUNCULKAN INPUT HANYA SAAT DITAHAN
+            mHeaderSingleCh.setOnLongClickListener(v -> {
+                try {
+                    IHumlaSession session = getService().HumlaSession();
+                    int perms = session.getPermissions();
+                    final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
+                    
+                    if ((perms & ADMIN_FLAGS) != 0) {
+                        // MUNCULKAN KOTAK INPUT & BUKA KEYBOARD
+                        mAdminInputContainer.setVisibility(View.VISIBLE);
+                        mEtAdminAnnounce.requestFocus();
+                        
+                        InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) {
+                            imm.showSoftInput(mEtAdminAnnounce, InputMethodManager.SHOW_IMPLICIT);
+                        }
+                        return true; // Event ditangani
+                    }
+                } catch (Exception e) { Log.e(TAG, "Long press check failed", e); }
+                
+                return false; // Bukan admin atau error
+            });
+
             // HANDLE KIRIM PENGUMUMAN LANGSUNG (DENGAN AUTO-HIDE FIX)
             mBtnSendAnnounce.setOnClickListener(v -> {
                 String text = mEtAdminAnnounce.getText().toString().trim();
@@ -339,8 +362,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             updateStageHeader(null);
             loadCachedAnnouncement(currentChannel);
             
-            // CEK PERMISSION ADMIN OTOMATIS SETIAP REFRESH (UNTUK MENAMPILKAN INPUT BOX)
-            checkAndShowAdminInput(currentChannel);
+            // ✅ PENTING: SEMBUNYIKAN KOTAK INPUT SAAT REFRESH AGAR TIDAK MUNCUL OTOMATIS
+            if (mAdminInputContainer != null) {
+                mAdminInputContainer.setVisibility(View.GONE);
+            }
 
             List<? extends IUser> rawUsers = currentChannel.getUsers();
             List<IUser> users = rawUsers != null ? new ArrayList<>(rawUsers) : new ArrayList<>();
@@ -348,27 +373,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mSingleUserAdapter.setUsers(users, currentChannel);
             
         } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
-    }
-
-    // ✅ LOGIC DETEKSI ADMIN & TAMPILKAN INPUT CERAH
-    private void checkAndShowAdminInput(IChannel channel) {
-        if (mAdminInputContainer == null || channel == null) return;
-        
-        try {
-            IHumlaSession session = getService().HumlaSession();
-            int perms = session.getPermissions();
-            
-            // Definisi Admin: Punya hak Kick ATAU Ban ATAU Register
-            final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
-            
-            if ((perms & ADMIN_FLAGS) != 0) {
-                mAdminInputContainer.setVisibility(View.VISIBLE);
-            } else {
-                mAdminInputContainer.setVisibility(View.GONE);
-            }
-        } catch (Exception e) { 
-            mAdminInputContainer.setVisibility(View.GONE); 
-        }
     }
 
     // === METODE BRIDGE ANNOUNCEMENT ===
