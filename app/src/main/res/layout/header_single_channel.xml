@@ -72,6 +72,28 @@
             android:maxLines="2"
             android:ellipsize="end"/>
 
+        <!-- ✅ PAPAN INFO REAL-TIME (ROYAL BLUE TRANSPARAN - BARU DITAMBAHKAN!) -->
+        <TextView
+            android:id="@+id/tv_channel_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#0056B3" 
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingVertical="6dp"
+            android:paddingHorizontal="12dp"
+            android:background="@android:color/transparent"
+            android:visibility="gone"
+            android:layout_marginTop="8dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:shadowColor="#FFFFFF"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="4"/>
+
         <!-- ✅ ANNOUNCEMENT OVERLAY BOARD (WARNA BARU: BIRU MUDA LEMBUT) -->
         <TextView
             android:id="@+id/tv_announcement_overlay"
