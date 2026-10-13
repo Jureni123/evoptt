@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Admin Announcement Overlay
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Admin Announcement Overlay + Fixed Swipe Gesture
  */
 package se.lublin.mumla.channel;
 
@@ -468,15 +468,22 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         bs.show();
     }
 
+    // ✅ FIX KRUSIAL: PAKSA VIEWPAGER AKTIF & MATIKAN ANIMASI GESER
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         PreferenceManager.getDefaultSharedPreferences(getActivity()).registerOnSharedPreferenceChangeListener(this);
-        if(mViewPager != null) mViewPager.setAdapter(new ChannelFragmentPagerAdapter(getChildFragmentManager()));
-        else {
-            ChannelListFragment lf=new ChannelListFragment(); lf.setArguments(new Bundle());
-            ChannelChatFragment cf=new ChannelChatFragment();
-            getChildFragmentManager().beginTransaction().replace(R.id.list_fragment,lf).replace(R.id.chat_fragment,cf).commit();
+        
+        // HANYA GUNAKAN VIEWPAGER. HAPUS LOGIC 'ELSE' YANG PAKAI REPLACE MANUAL!
+        if (mViewPager != null) {
+            mViewPager.setAdapter(new ChannelFragmentPagerAdapter(getChildFragmentManager()));
+            
+            // Matikan animasi geser halaman biar terasa 'statis' seperti Stage Layout
+            // Tapi gestur swipe tetap hidup untuk buka Drawer & pindah tab
+            mViewPager.setPageTransformer(false, null); 
+            
+            // Opsional: Set default page ke Chat (index 1) atau List (index 0)
+            // mViewPager.setCurrentItem(1, false); 
         }
     }
 
