@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Realtime Channel Info Board
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Realtime Channel Info Board (Final Fix)
  */
 package se.lublin.mumla.channel;
 
@@ -74,6 +74,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     // ✅ KONSTANTA SERVICE ACCOUNT
     private static final String SYSTEM_ACCOUNT_NAME = "[SYSTEM-INFO]";
     private static final String META_TYPE_INFO = "CHANNEL_INFO";
+    private static final int MAX_INFO_LENGTH = 200; // Batas aman untuk server
 
     // Variabel Lama (ViewPager, PTT, dll)
     private ViewPager mViewPager;
@@ -477,70 +478,120 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         builder.show();
     }
 
-    // ✅ METHOD BARU: KIRIM INFO VIA SERVICE ACCOUNT
+    // ✅ METHOD BARU: KIRIM INFO VIA SERVICE ACCOUNT (FINAL FIX)
     private void sendChannelInfo(String text) {
         try {
             IHumlaSession session = getService().HumlaSession();
             IChannel currentCh = session.getSessionChannel();
-            
             if (currentCh == null) return;
             
-            // Cari Session ID dari [SYSTEM-INFO]
-            int systemSession = -1;
-            List<? extends IUser> users = currentCh.getUsers(); // Atau iterate semua user di server jika perlu
-            // Catatan: Idealnya kita cari dari daftar global user, tapi untuk Fase 1
-            // kita asumsikan admin bisa mencari atau kita pakai nama sebagai fallback.
-            // Karena library tidak expose getUsers() global di IHumlaSession, 
-            // kita gunakan trik: requestComment dulu atau cari di observer.
-            // Untuk simplifikasi Fase 1: Kita broadcast ke semua user, parser akan filter by name.
-            // TAPI setUserComment butuh session ID spesifik.
-            
-            // SOLUSI ROBUST: Iterate user di channel saat ini atau root
-            // Jika [SYSTEM-INFO] tidak di channel, kita perlu cara lain.
-            // Alternatif: Gunakan session ID admin sendiri sebagai proxy sementara? 
-            // TIDAK, karena harus persisten.
-            
-            // WORKAROUND FASE 1: Admin harus memastikan [SYSTEM-INFO] online.
-            // Kita cari user dengan nama tersebut di channel aktif atau root.
-            IChannel root = session.getRootChannel();
-            if (root != null) {
-                for (IUser u : root.getUsers()) {
-                    if (SYSTEM_ACCOUNT_NAME.equals(u.getName())) {
-                        systemSession = u.getSession();
-                        break;
-                    }
-                }
-            }
-            
-            if (systemSession == -1) {
-                Toast.makeText(requireContext(), "Akun [SYSTEM-INFO] tidak ditemukan/online!", Toast.LENGTH_LONG).show();
+            // 1. SANITIZE & BATASI PANJANG (Safety First!)
+            String safeText = text.trim().replaceAll("[\\n\\r]", " ");
+            if (safeText.length() > MAX_INFO_LENGTH) {
+                Toast.makeText(requireContext(), "Info terlalu panjang! Maks " + MAX_INFO_LENGTH + " karakter.", Toast.LENGTH_LONG).show();
                 return;
             }
             
-            // Generate JSON Payload
-            JSONObject meta = new JSONObject();
-            meta.put("type", META_TYPE_INFO);
-            meta.put("ch_id", currentCh.getId());
-            meta.put("content", text);
-            meta.put("ts", System.currentTimeMillis() / 1000);
-            meta.put("author", session.getSessionUser().getName());
+            // 2. CARI SYSTEM ACCOUNT DI SELURUH SERVER
+            int systemSession = findSystemSession(session);
+            boolean isFallback = false;
             
-            // Kirim ke Server
-            session.setUserComment(systemSession, meta.toString());
+            // FALLBACK: Jika tidak ketemu, pakai session admin sendiri
+            if (systemSession == -1) {
+                systemSession = session.getSessionId();
+                isFallback = true;
+                Log.w(TAG, "[SYSTEM-INFO] not found. Using admin session as temporary carrier.");
+            }
             
-            // Optimistic Update UI
-            updateChannelInfo(text);
+            // 3. BUILD JSON COMPACT (Manual string building agar lebih kontrol)
+            StringBuilder sb = new StringBuilder();
+            sb.append("{\"t\":\"").append(META_TYPE_INFO).append("\"");
+            sb.append(",\"c\":\"").append(escapeJson(safeText)).append("\"");
+            sb.append(",\"id\":").append(currentCh.getId());
+            sb.append(",\"ts\":").append(System.currentTimeMillis() / 1000);
+            sb.append(",\"a\":\"").append(escapeJson(session.getSessionUser().getName())).append("\"}");
             
-            // Simpan Cache
+            String jsonPayload = sb.toString();
+            
+            // Double check length (just in case)
+            if (jsonPayload.length() > 800) {
+                 Toast.makeText(requireContext(), "Data terlalu besar. Pendekkan info.", Toast.LENGTH_LONG).show();
+                 return;
+            }
+
+            // 4. KIRIM KE SERVER
+            session.setUserComment(systemSession, jsonPayload);
+            
+            // 5. UPDATE UI & CACHE
+            updateChannelInfo(safeText);
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-            prefs.edit().putString("channel_info_ch_" + currentCh.getId(), meta.toString()).apply();
+            prefs.edit().putString("channel_info_ch_" + currentCh.getId(), jsonPayload).apply();
             
-            Toast.makeText(requireContext(), "Info channel diperbarui!", Toast.LENGTH_SHORT).show();
+            // 6. FEEDBACK
+            String msg = isFallback ? "Info tersimpan (sementara)." : "Info channel diperbarui!";
+            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
             Log.e(TAG, "Send channel info failed", e);
-            Toast.makeText(requireContext(), "Gagal update info: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            String errorMsg = e.getMessage();
+            if (errorMsg != null && errorMsg.toLowerCase().contains("too long")) {
+                Toast.makeText(requireContext(), "Gagal: Teks melebihi batas server.", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(requireContext(), "Gagal kirim: " + errorMsg, Toast.LENGTH_LONG).show();
+            }
         }
+    }
+
+    // ✅ HELPER: CARI SESSION ID DI SELURUH SERVER
+    private int findSystemSession(IHumlaSession session) {
+        // Cek dulu di Root Channel (cepat)
+        IChannel root = session.getRootChannel();
+        if (root != null) {
+            for (IUser u : root.getUsers()) {
+                if (SYSTEM_ACCOUNT_NAME.equals(u.getName())) return u.getSession();
+            }
+        }
+
+        // Jika tidak ketemu di Root, cek SEMUA channel lain
+        try {
+            List<IChannel> allChannels = new ArrayList<>();
+            collectAllChannelsRecursive(root, allChannels);
+            
+            for (IChannel ch : allChannels) {
+                if (ch.getUsers() != null) {
+                    for (IUser u : ch.getUsers()) {
+                        if (SYSTEM_ACCOUNT_NAME.equals(u.getName())) {
+                            return u.getSession(); // KETEMU!
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error searching system account", e);
+        }
+
+        return -1; // Tidak ketemu sama sekali
+    }
+
+    // Helper recursive untuk ambil semua channel
+    private void collectAllChannelsRecursive(IChannel parent, List<IChannel> list) {
+        if (parent == null) return;
+        list.add(parent);
+        if (parent.getSubchannels() != null) {
+            for (IChannel sub : parent.getSubchannels()) {
+                collectAllChannelsRecursive(sub, list);
+            }
+        }
+    }
+
+    // Helper untuk escape karakter JSON manual
+    private String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     // ✅ METHOD BARU: UPDATE UI CHANNEL INFO
