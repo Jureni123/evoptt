@@ -34,7 +34,7 @@
                 android:layout_width="4dp"
                 android:layout_height="4dp"
                 android:background="#66FFFFFF"
-                android:layout_marginHorizontal="6dp"/> <!-- Dot pemisah -->
+                android:layout_marginHorizontal="6dp"/> 
 
             <TextView
                 android:id="@+id/tv_channel_name"
@@ -71,6 +71,27 @@
             android:layout_marginTop="4dp"
             android:maxLines="2"
             android:ellipsize="end"/>
+
+        <!-- ✅ ANNOUNCEMENT OVERLAY BOARD (BARU DITAMBAHKAN) -->
+        <!-- Muncul transparan di bawah deskripsi saat admin kirim !announce -->
+        <TextView
+            android:id="@+id/tv_announcement_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#99000000"
+            android:textColor="#FFD700"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:padding="8dp"
+            android:gravity="center"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:visibility="gone"
+            android:layout_marginTop="6dp"
+            android:shadowColor="#000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2"/>
             
     </LinearLayout>
 
