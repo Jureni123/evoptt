@@ -148,7 +148,7 @@
         android:layout_gravity="top|end" 
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
-        android:src="@drawable/ic_edit_note" 
+        android:src="@drawable/ic_registered" 
         android:background="?attr/selectableItemBackgroundBorderless"
         android:tint="#0056B3" 
         android:contentDescription="Edit Informasi Channel"
