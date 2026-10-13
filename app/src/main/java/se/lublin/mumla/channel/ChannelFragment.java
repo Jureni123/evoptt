@@ -500,7 +500,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     }
 
     // ✅ METHOD BARU: LOAD CACHE CHANNEL INFO
-    private void loadCachedChannelInfo(IChannel channel) {
+    public void loadCachedChannelInfo(IChannel channel) {
         if (channel == null || mTvChannelInfo == null) return;
         
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
