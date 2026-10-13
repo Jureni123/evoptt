@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Admin Announcement Overlay + Fixed Swipe Gesture
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Smart Admin Announcement Input (Senior Friendly)
  */
 package se.lublin.mumla.channel;
 
@@ -19,8 +19,11 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -50,6 +53,7 @@ import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.TalkState;
 import se.lublin.humla.model.WhisperTarget;
+import se.lublin.humla.net.Permissions;
 import se.lublin.humla.util.HumlaDisconnectedException;
 import se.lublin.humla.util.HumlaObserver;
 import se.lublin.humla.util.IHumlaObserver;
@@ -63,7 +67,7 @@ import se.lublin.mumla.util.HumlaServiceFragment;
 public class ChannelFragment extends HumlaServiceFragment implements SharedPreferences.OnSharedPreferenceChangeListener, ChatTargetProvider {
     private static final String TAG = "MumlaOLED";
 
-    // Variabel Lama (ViewPager, PTT, dll) - TETAP UTUH SEPERTI ASLI
+    // Variabel Lama (ViewPager, PTT, dll)
     private ViewPager mViewPager;
     private PagerTabStrip mTabStrip;
     private Button mTalkButton;
@@ -72,7 +76,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private ImageView mTargetPanelCancel;
     private TextView mTargetPanelText;
 
-    // Variabel Single Channel View (STAGE LAYOUT BARU)
+    // Variabel Single Channel View (STAGE LAYOUT)
     private FrameLayout mSingleChContainer;
     private RecyclerView mRvUserList;
     private SingleChannelUserAdapter mSingleUserAdapter;
@@ -81,9 +85,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     // Variabel Header Stage
     private TextView mTvChannelId, mTvChannelName, mTvSpeakerName, mTvChannelDesc;
     private ImageView mImgMainAvatar;
-    
-    // ✅ VARIABEL ANNOUNCEMENT OVERLAY BOARD
     private TextView mTvAnnouncementOverlay;
+
+    // ✅ VARIABEL SMART ADMIN INPUT (SENIOR FRIENDLY)
+    private LinearLayout mAdminInputContainer;
+    private EditText mEtAdminAnnounce;
+    private ImageButton mBtnSendAnnounce;
 
     private ChatTarget mChatTarget;
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<>();
@@ -93,24 +100,23 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private View mBtnGlobalSet, mBtnAudioMenu, mBtnSessionMenu, mBtnListCh;
     private FrameLayout mPttContainer;
 
-    // ✅ OBSERVER SUPER LENGKAP: MENDENGARKAN SEMUA EVENT JOIN/PART/STATE DARI LIBRARY HUMLA
+    // OBSERVER LENGKAP
     private HumlaObserver mObserver = new HumlaObserver() {
-        
         @Override
         public void onUserConnected(IUser user) {
-            Log.d(TAG, ">>> [EVENT] User Connected: " + (user != null ? user.getName() : "Unknown"));
+            Log.d(TAG, ">>> [EVENT] User Connected");
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
         @Override
         public void onUserJoinedChannel(IUser user, IChannel newChannel, IChannel oldChannel) {
-            Log.d(TAG, ">>> [EVENT] User Joined Channel: " + (user != null ? user.getName() : "Unknown"));
+            Log.d(TAG, ">>> [EVENT] User Joined Channel");
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
         @Override
         public void onUserRemoved(IUser user, String reason) {
-            Log.d(TAG, ">>> [EVENT] User Removed: " + (user != null ? user.getName() : "Unknown") + " | Reason: " + reason);
+            Log.d(TAG, ">>> [EVENT] User Removed");
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
@@ -221,9 +227,36 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mTvSpeakerName = mHeaderSingleCh.findViewById(R.id.tv_speaker_name);
             mImgMainAvatar = mHeaderSingleCh.findViewById(R.id.img_main_avatar);
             mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
-            
-            // ✅ INISIALISASI ANNOUNCEMENT OVERLAY
             mTvAnnouncementOverlay = mHeaderSingleCh.findViewById(R.id.tv_announcement_overlay);
+            
+            // ✅ INISIALISASI SMART ADMIN INPUT
+            mAdminInputContainer = mHeaderSingleCh.findViewById(R.id.admin_input_container);
+            mEtAdminAnnounce = mHeaderSingleCh.findViewById(R.id.et_admin_announce);
+            mBtnSendAnnounce = mHeaderSingleCh.findViewById(R.id.btn_send_announce);
+
+            // HANDLE KIRIM PENGUMUMAN LANGSUNG (TANPA SPAM CHAT)
+            mBtnSendAnnounce.setOnClickListener(v -> {
+                String text = mEtAdminAnnounce.getText().toString().trim();
+                if (!text.isEmpty() && getService() != null && getService().isConnected()) {
+                    try {
+                        IHumlaSession session = getService().HumlaSession();
+                        IChannel currentCh = session.getSessionChannel();
+                        
+                        if (currentCh != null) {
+                            // 1. UPDATE OVERLAY LANGSUNG
+                            notifyAnnouncement(currentCh.getId(), text, "Admin");
+                            
+                            // 2. SIMPAN KE CACHE PERMANEN
+                            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                            prefs.edit().putString("announcement_ch_" + currentCh.getId(), text).apply();
+                            
+                            // 3. KOSONGKAN INPUT & FEEDBACK
+                            mEtAdminAnnounce.setText("");
+                            Toast.makeText(requireContext(), "Pengumuman diperbarui!", Toast.LENGTH_SHORT).show();
+                        }
+                    } catch (Exception e) { Log.e(TAG, "Send announce failed", e); }
+                }
+            });
 
             ViewGroup stageContainer = view.findViewById(R.id.header_stage_container);
             if (stageContainer != null && mHeaderSingleCh != null) {
@@ -294,9 +327,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             }
             
             updateStageHeader(null);
-            
-            // ✅ LOAD CACHE ANNOUNCEMENT SAAT REFRESH CHANNEL
             loadCachedAnnouncement(currentChannel);
+            
+            // ✅ CEK PERMISSION ADMIN OTOMATIS SETIAP REFRESH
+            checkAndShowAdminInput(currentChannel);
 
             List<? extends IUser> rawUsers = currentChannel.getUsers();
             List<IUser> users = rawUsers != null ? new ArrayList<>(rawUsers) : new ArrayList<>();
@@ -306,13 +340,33 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
     }
 
-    // === METODE BRIDGE ANNOUNCEMENT DARI CHAT FRAGMENT ===
+    // ✅ LOGIC DETEKSI ADMIN & TAMPILKAN INPUT CERAH
+    private void checkAndShowAdminInput(IChannel channel) {
+        if (mAdminInputContainer == null || channel == null) return;
+        
+        try {
+            IHumlaSession session = getService().HumlaSession();
+            int perms = session.getPermissions();
+            
+            // Definisi Admin: Punya hak Kick ATAU Ban ATAU Register
+            final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
+            
+            if ((perms & ADMIN_FLAGS) != 0) {
+                mAdminInputContainer.setVisibility(View.VISIBLE);
+            } else {
+                mAdminInputContainer.setVisibility(View.GONE);
+            }
+        } catch (Exception e) { 
+            mAdminInputContainer.setVisibility(View.GONE); 
+        }
+    }
+
+    // === METODE BRIDGE ANNOUNCEMENT ===
     public void notifyAnnouncement(int channelId, String message, String senderName) {
         if (mTvAnnouncementOverlay == null) return;
         try {
             IHumlaSession session = getService().HumlaSession();
             IChannel currentCh = session.getSessionChannel();
-            // Hanya tampilkan jika channel aktif sama dengan target announcement
             if (currentCh != null && currentCh.getId() == channelId) {
                 mTvAnnouncementOverlay.setText(message);
                 mTvAnnouncementOverlay.setVisibility(View.VISIBLE);
@@ -320,7 +374,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } catch (Exception e) { Log.e(TAG, "Notify announcement failed", e); }
     }
 
-    // === LOAD CACHE ANNOUNCEMENT DARI SHARED PREFERENCES ===
+    // === LOAD CACHE ANNOUNCEMENT ===
     private void loadCachedAnnouncement(IChannel channel) {
         if (channel == null || mTvAnnouncementOverlay == null) return;
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
@@ -474,16 +528,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         super.onActivityCreated(savedInstanceState);
         PreferenceManager.getDefaultSharedPreferences(getActivity()).registerOnSharedPreferenceChangeListener(this);
         
-        // HANYA GUNAKAN VIEWPAGER. HAPUS LOGIC 'ELSE' YANG PAKAI REPLACE MANUAL!
         if (mViewPager != null) {
             mViewPager.setAdapter(new ChannelFragmentPagerAdapter(getChildFragmentManager()));
-            
-            // Matikan animasi geser halaman biar terasa 'statis' seperti Stage Layout
-            // Tapi gestur swipe tetap hidup untuk buka Drawer & pindah tab
             mViewPager.setPageTransformer(false, null); 
-            
-            // Opsional: Set default page ke Chat (index 1) atau List (index 0)
-            // mViewPager.setCurrentItem(1, false); 
         }
     }
 
@@ -510,7 +557,8 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mViewPager=null; mTabStrip=null; mTalkButton=null; mTalkView=null; mTargetPanel=null; mTargetPanelCancel=null; mTargetPanelText=null;
         mSingleChContainer=null; mRvUserList=null; mSingleUserAdapter=null; mHeaderSingleCh=null;
         mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
-        mTvAnnouncementOverlay=null; // ✅ CLEANUP VARIABEL BARU
+        mTvAnnouncementOverlay=null; 
+        mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null; // ✅ CLEANUP INPUT ADMIN
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
     }
 
