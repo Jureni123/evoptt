@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Announcement System (Server Sync)
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Realtime Channel Info Board
  */
 package se.lublin.mumla.channel;
 
@@ -45,6 +45,8 @@ import androidx.viewpager.widget.ViewPager;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,6 +70,10 @@ import se.lublin.mumla.util.HumlaServiceFragment;
 
 public class ChannelFragment extends HumlaServiceFragment implements SharedPreferences.OnSharedPreferenceChangeListener, ChatTargetProvider {
     private static final String TAG = "MumlaOLED";
+    
+    // ✅ KONSTANTA SERVICE ACCOUNT
+    private static final String SYSTEM_ACCOUNT_NAME = "[SYSTEM-INFO]";
+    private static final String META_TYPE_INFO = "CHANNEL_INFO";
 
     // Variabel Lama (ViewPager, PTT, dll)
     private ViewPager mViewPager;
@@ -88,11 +94,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private TextView mTvChannelId, mTvChannelName, mTvSpeakerName, mTvChannelDesc;
     private ImageView mImgMainAvatar;
     private TextView mTvAnnouncementOverlay;
+    private TextView mTvChannelInfo; // ✅ VARIABEL BARU: PAPAN INFO REAL-TIME
 
     // ✅ VARIABEL SMART ADMIN INPUT (LONG PRESS TRIGGER)
     private LinearLayout mAdminInputContainer;
     private EditText mEtAdminAnnounce;
     private ImageButton mBtnSendAnnounce;
+    
+    // ✅ VARIABEL TOMBOL EDIT INFO (POJOK KANAN ATAS)
+    private ImageButton mBtnEditInfo;
 
     private ChatTarget mChatTarget;
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<>();
@@ -130,12 +140,43 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         @Override
         public void onUserStateUpdated(IUser user) {
+            // ✅ LOGIC UTAMA: PARSER CHANNEL INFO DARI SERVICE ACCOUNT
+            if (user != null && SYSTEM_ACCOUNT_NAME.equals(user.getName())) {
+                try {
+                    String comment = user.getComment();
+                    if (comment != null && !comment.isEmpty()) {
+                        JSONObject meta = new JSONObject(comment);
+                        
+                        // Validasi Type & Channel ID
+                        if (META_TYPE_INFO.equals(meta.optString("type"))) {
+                            int targetChId = meta.optInt("ch_id", -1);
+                            IChannel currentCh = getService().HumlaSession().getSessionChannel();
+                            
+                            if (currentCh != null && currentCh.getId() == targetChId) {
+                                String content = meta.optString("content", "");
+                                
+                                // Update UI Header Real-Time
+                                updateChannelInfo(content);
+                                
+                                // Simpan Cache Lokal untuk Persistensi
+                                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                                prefs.edit().putString("channel_info_ch_" + targetChId, comment).apply();
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Invalid meta JSON in system comment", e);
+                }
+            }
+
+            // Logic Existing (Talk State, Configure Input)
             if (getService() != null && getService().isConnected()) {
                 try {
                     int selfSession = getService().HumlaSession().getSessionId();
                     if (user != null && user.getSession() == selfSession) configureInput();
                 } catch (Exception e) {}
             }
+            
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
@@ -230,7 +271,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mImgMainAvatar = mHeaderSingleCh.findViewById(R.id.img_main_avatar);
             mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
             mTvAnnouncementOverlay = mHeaderSingleCh.findViewById(R.id.tv_announcement_overlay);
+            mTvChannelInfo = mHeaderSingleCh.findViewById(R.id.tv_channel_info); // ✅ INISIALISASI
             
+            // ✅ INISIALISASI TOMBOL EDIT INFO
+            mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
+            mBtnEditInfo.setOnClickListener(v -> showEditInfoDialog());
+
             // ✅ INISIALISASI SMART ADMIN INPUT
             mAdminInputContainer = mHeaderSingleCh.findViewById(R.id.admin_input_container);
             mEtAdminAnnounce = mHeaderSingleCh.findViewById(R.id.et_admin_announce);
@@ -244,7 +290,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                     final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
                     
                     if ((perms & ADMIN_FLAGS) != 0) {
-                        // MUNCULKAN KOTAK INPUT & BUKA KEYBOARD
                         mAdminInputContainer.setVisibility(View.VISIBLE);
                         mEtAdminAnnounce.requestFocus();
                         
@@ -252,14 +297,14 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                         if (imm != null) {
                             imm.showSoftInput(mEtAdminAnnounce, InputMethodManager.SHOW_IMPLICIT);
                         }
-                        return true; // Event ditangani
+                        return true;
                     }
                 } catch (Exception e) { Log.e(TAG, "Long press check failed", e); }
                 
-                return false; // Bukan admin atau error
+                return false;
             });
 
-            // ✅ HANDLE KIRIM PENGUMUMAN HYBRID SYSTEM (SERVER SYNC + AUTO-HIDE)
+            // ✅ HANDLE KIRIM PENGUMUMAN HYBRID SYSTEM
             mBtnSendAnnounce.setOnClickListener(v -> {
                 String text = mEtAdminAnnounce.getText().toString().trim();
                 if (!text.isEmpty() && getService() != null && getService().isConnected()) {
@@ -268,18 +313,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                         IChannel currentCh = session.getSessionChannel();
                         
                         if (currentCh != null) {
-                            // LANGKAH 1: KIRIM KE SERVER VIA PROTOKOL CHAT STANDAR
-                            // Prefix !announce digunakan sebagai penanda khusus bagi parser penerima
                             session.sendChannelTextMessage(currentCh.getId(), "!announce " + text, false);
-                            
-                            // LANGKAH 2: UPDATE OVERLAY ADMIN LANGSUNG (BIAR INSTAN TANPA TUNGGU LOOPBACK)
                             notifyAnnouncement(currentCh.getId(), text, "Admin");
                             
-                            // LANGKAH 3: SIMPAN CACHE LOKAL ADMIN UNTUK PERSISTENSI
                             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                             prefs.edit().putString("announcement_ch_" + currentCh.getId(), text).apply();
                             
-                            // LANGKAH 4: AUTO-HIDE & RESET UI AGAR TAMPILAN BERSIH
                             mEtAdminAnnounce.setText("");
                             Toast.makeText(requireContext(), "Pengumuman disebar!", Toast.LENGTH_SHORT).show();
                             
@@ -366,11 +405,15 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             
             updateStageHeader(null);
             loadCachedAnnouncement(currentChannel);
+            loadCachedChannelInfo(currentChannel); // ✅ LOAD CACHE INFO SAAT REFRESH
             
-            // ✅ PENTING: SEMBUNYIKAN KOTAK INPUT SAAT REFRESH AGAR TIDAK MUNCUL OTOMATIS
+            // Sembunyikan kotak input saat refresh
             if (mAdminInputContainer != null) {
                 mAdminInputContainer.setVisibility(View.GONE);
             }
+            
+            // ✅ VALIDASI OTORITAS UNTUK TOMBOL EDIT
+            updateAdminControls(currentChannel);
 
             List<? extends IUser> rawUsers = currentChannel.getUsers();
             List<IUser> users = rawUsers != null ? new ArrayList<>(rawUsers) : new ArrayList<>();
@@ -378,6 +421,160 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mSingleUserAdapter.setUsers(users, currentChannel);
             
         } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
+    }
+
+    // ✅ METHOD BARU: VALIDASI & TAMPILKAN TOMBOL EDIT
+    private void updateAdminControls(IChannel channel) {
+        if (mBtnEditInfo == null || channel == null) return;
+        
+        try {
+            IHumlaSession session = getService().HumlaSession();
+            int perms = session.getPermissions();
+            
+            // Definisi Otoritas: Write, Kick, Ban, Register
+            final int ADMIN_FLAGS = Permissions.Write | Permissions.Kick | Permissions.Ban | Permissions.Register;
+            
+            if ((perms & ADMIN_FLAGS) != 0) {
+                mBtnEditInfo.setVisibility(View.VISIBLE);
+            } else {
+                mBtnEditInfo.setVisibility(View.GONE);
+            }
+        } catch (Exception e) { 
+            mBtnEditInfo.setVisibility(View.GONE); 
+        }
+    }
+
+    // ✅ METHOD BARU: DIALOG EDIT INFO CHANNEL
+    private void showEditInfoDialog() {
+        if (getService() == null || !getService().isConnected()) return;
+        
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext());
+        builder.setTitle("Edit Informasi Channel");
+        
+        final EditText input = new EditText(requireContext());
+        input.setHint("Masukkan info channel...");
+        input.setPadding(40, 30, 40, 30);
+        
+        // Load teks terakhir jika ada
+        try {
+            IChannel ch = getService().HumlaSession().getSessionChannel();
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+            String cached = prefs.getString("channel_info_ch_" + ch.getId(), null);
+            if (cached != null) {
+                JSONObject meta = new JSONObject(cached);
+                input.setText(meta.optString("content", ""));
+            }
+        } catch (Exception e) {}
+        
+        builder.setView(input);
+        
+        builder.setPositiveButton("Simpan", (d, w) -> {
+            String text = input.getText().toString().trim();
+            if (!text.isEmpty()) sendChannelInfo(text);
+        });
+        
+        builder.setNegativeButton("Batal", null);
+        builder.show();
+    }
+
+    // ✅ METHOD BARU: KIRIM INFO VIA SERVICE ACCOUNT
+    private void sendChannelInfo(String text) {
+        try {
+            IHumlaSession session = getService().HumlaSession();
+            IChannel currentCh = session.getSessionChannel();
+            
+            if (currentCh == null) return;
+            
+            // Cari Session ID dari [SYSTEM-INFO]
+            int systemSession = -1;
+            List<? extends IUser> users = currentCh.getUsers(); // Atau iterate semua user di server jika perlu
+            // Catatan: Idealnya kita cari dari daftar global user, tapi untuk Fase 1
+            // kita asumsikan admin bisa mencari atau kita pakai nama sebagai fallback.
+            // Karena library tidak expose getUsers() global di IHumlaSession, 
+            // kita gunakan trik: requestComment dulu atau cari di observer.
+            // Untuk simplifikasi Fase 1: Kita broadcast ke semua user, parser akan filter by name.
+            // TAPI setUserComment butuh session ID spesifik.
+            
+            // SOLUSI ROBUST: Iterate user di channel saat ini atau root
+            // Jika [SYSTEM-INFO] tidak di channel, kita perlu cara lain.
+            // Alternatif: Gunakan session ID admin sendiri sebagai proxy sementara? 
+            // TIDAK, karena harus persisten.
+            
+            // WORKAROUND FASE 1: Admin harus memastikan [SYSTEM-INFO] online.
+            // Kita cari user dengan nama tersebut di channel aktif atau root.
+            IChannel root = session.getRootChannel();
+            if (root != null) {
+                for (IUser u : root.getUsers()) {
+                    if (SYSTEM_ACCOUNT_NAME.equals(u.getName())) {
+                        systemSession = u.getSession();
+                        break;
+                    }
+                }
+            }
+            
+            if (systemSession == -1) {
+                Toast.makeText(requireContext(), "Akun [SYSTEM-INFO] tidak ditemukan/online!", Toast.LENGTH_LONG).show();
+                return;
+            }
+            
+            // Generate JSON Payload
+            JSONObject meta = new JSONObject();
+            meta.put("type", META_TYPE_INFO);
+            meta.put("ch_id", currentCh.getId());
+            meta.put("content", text);
+            meta.put("ts", System.currentTimeMillis() / 1000);
+            meta.put("author", session.getSessionUser().getName());
+            
+            // Kirim ke Server
+            session.setUserComment(systemSession, meta.toString());
+            
+            // Optimistic Update UI
+            updateChannelInfo(text);
+            
+            // Simpan Cache
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+            prefs.edit().putString("channel_info_ch_" + currentCh.getId(), meta.toString()).apply();
+            
+            Toast.makeText(requireContext(), "Info channel diperbarui!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Send channel info failed", e);
+            Toast.makeText(requireContext(), "Gagal update info: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ✅ METHOD BARU: UPDATE UI CHANNEL INFO
+    private void updateChannelInfo(String text) {
+        if (mTvChannelInfo == null) return;
+        
+        if (text != null && !text.trim().isEmpty()) {
+            mTvChannelInfo.setText(text);
+            mTvChannelInfo.setVisibility(View.VISIBLE);
+        } else {
+            mTvChannelInfo.setText("");
+            mTvChannelInfo.setVisibility(View.GONE);
+        }
+    }
+
+    // ✅ METHOD BARU: LOAD CACHE CHANNEL INFO
+    private void loadCachedChannelInfo(IChannel channel) {
+        if (channel == null || mTvChannelInfo == null) return;
+        
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        String cached = prefs.getString("channel_info_ch_" + channel.getId(), null);
+        
+        if (cached != null && !cached.isEmpty()) {
+            try {
+                JSONObject meta = new JSONObject(cached);
+                if (META_TYPE_INFO.equals(meta.optString("type"))) {
+                    updateChannelInfo(meta.optString("content", ""));
+                }
+            } catch (Exception e) {
+                // Jika JSON rusak, abaikan
+            }
+        } else {
+            updateChannelInfo(null);
+        }
     }
 
     // === METODE BRIDGE ANNOUNCEMENT ===
@@ -397,7 +594,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private void loadCachedAnnouncement(IChannel channel) {
         if (channel == null || mTvAnnouncementOverlay == null) return;
         
-        // LANGSUNG LOAD DARI CACHE UNTUK SEMUA USER (PUBLIK)
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         String cached = prefs.getString("announcement_ch_" + channel.getId(), null);
         
@@ -579,7 +775,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mSingleChContainer=null; mRvUserList=null; mSingleUserAdapter=null; mHeaderSingleCh=null;
         mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
         mTvAnnouncementOverlay=null; 
-        mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null; // ✅ CLEANUP INPUT ADMIN
+        mTvChannelInfo=null; // ✅ CLEANUP
+        mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null;
+        mBtnEditInfo=null; // ✅ CLEANUP
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
     }
 
