@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Admin Announcement Parser Integration
+ * By Jureni123 Modified for Mumla OLED - Hybrid Announcement System (Public Sync + Clean Chat)
  */
 package se.lublin.mumla.channel;
 
@@ -105,14 +105,45 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
 
         @Override
         public void onMessageLogged(IMessage message) {
-            // === PARSER ANNOUNCEMENT FULL FEATURE ADMIN ===
-            if (isValidAnnouncement(message)) {
-                handleAnnouncement(message);
-                // Uncomment baris di bawah jika ingin menyembunyikan command !announce dari history chat
-                // return; 
-            }
-            // ==============================================
+            // ✅ INTERCEPT DI GERBANG MASUK SEBELUM ADAPTER CHAT
+            String body = message.getMessage();
             
+            // Cek apakah ini pesan announcement berdasarkan prefix
+            if (body != null && body.startsWith(ANNOUNCE_PREFIX)) {
+                
+                // Ekstrak teks murni setelah prefix "!announce "
+                String announcementText = body.substring(ANNOUNCE_PREFIX.length()).trim();
+                
+                // Ambil ID channel target secara aman
+                int channelId = -1;
+                try {
+                    // Fallback paling stabil: gunakan channel sesi aktif saat ini
+                    channelId = getService().HumlaSession().getSessionChannel().getId();
+                } catch (Exception e) { 
+                    Log.w(TAG, "Gagal mengambil channel ID, skip announcement");
+                    return; 
+                }
+
+                // ✅ PROSES UNTUK SEMUA USER (ADMIN & BIASA) TANPA VALIDASI ACL
+                if (channelId != -1) {
+                    // Bridge ke Parent Fragment untuk update UI Overlay Header
+                    Fragment parent = getParentFragment();
+                    if (parent instanceof ChannelFragment) {
+                        ((ChannelFragment) parent).notifyAnnouncement(channelId, announcementText, message.getActorName());
+                    }
+                    
+                    // Simpan cache lokal untuk persistensi setelah restart/reconnect
+                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                    prefs.edit().putString("announcement_ch_" + channelId, announcementText).apply();
+                }
+                
+                // ✅ EARLY RETURN: HENTIKAN EKSEKUSI DI SINI
+                // Pesan TIDAK AKAN pernah masuk ke addChatMessage()
+                // Chat history tetap bersih seperti Opsi B (Metadata Server)
+                return; 
+            }
+            
+            // Jika bukan announcement, lanjutkan flow chat normal
             addChatMessage(new IChatMessage.TextMessage(message), true);
         }
 
@@ -259,7 +290,6 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             clear();
             return true;
         }
-        // ✅ PERBAIKAN: Ganti 'i' menjadi 'item'
         return super.onOptionsItemSelected(item);
     }
 
@@ -436,64 +466,8 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
     }
 
     // ========================================================================
-    // ✅ LOGIC PARSER ANNOUNCEMENT FULL FEATURE ADMIN (ZERO GUESSWORK)
-    // ========================================================================
-    
-    private boolean isValidAnnouncement(IMessage message) {
-        // A. Hanya proses Channel Chat (Abaikan PM & Global Tree)
-        if (message.getTargetUsers() != null && !message.getTargetUsers().isEmpty()) return false;
-        if (message.getTargetChannels() == null || message.getTargetChannels().isEmpty()) return false;
-        
-        // B. Cek prefix command
-        String body = message.getMessage();
-        if (body == null || !body.startsWith(ANNOUNCE_PREFIX)) return false;
-        
-        // C. Validasi Admin via Self-Permission (ACL Server) - NILAI PASTI!
-        try {
-            IHumlaSession session = getService().HumlaSession();
-            int perms = session.getPermissions();
-            
-            // Definisi Admin: Punya hak Kick ATAU Ban ATAU Register
-            final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
-            
-            if ((perms & ADMIN_FLAGS) == 0) return false; 
-        } catch (Exception e) { 
-            Log.e(TAG, "Admin permission check failed", e); 
-            return false; 
-        }
-        
-        return true;
-    }
-
-    private void handleAnnouncement(IMessage message) {
-        String rawBody = message.getMessage();
-        String announcement = rawBody.substring(ANNOUNCE_PREFIX.length()).trim();
-        
-        // Rate limiting panjang pesan
-        if (announcement.length() > MAX_ANNOUNCE_LENGTH) {
-            announcement = announcement.substring(0, MAX_ANNOUNCE_LENGTH) + "...";
-        }
-        
-        // Ambil channel ID target
-        int channelId = -1;
-        try {
-            channelId = getService().HumlaSession().getSessionChannel().getId();
-        } catch (Exception e) { 
-            Log.e(TAG, "Failed to get channel ID for announcement", e); 
-            return; 
-        }
-        
-        // Bridge ke ChannelFragment via parent casting
-        Fragment parent = getParentFragment();
-        if (parent instanceof ChannelFragment) {
-            ((ChannelFragment) parent).notifyAnnouncement(channelId, announcement, message.getActorName());
-        }
-        
-        // Simpan ke SharedPreferences untuk persistence
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-        prefs.edit().putString("announcement_ch_" + channelId, announcement).apply();
-    }
-
+    // ✅ METHOD LAMA DIHAPUS: isValidAnnouncement & handleAnnouncement
+    // LOGIKA SUDAH DIPINDAH KE DALAM onMessageLogged DI ATAS
     // ========================================================================
 
     private static class ChannelChatAdapter extends ArrayAdapter<IChatMessage> {
