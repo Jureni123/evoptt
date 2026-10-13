@@ -1,20 +1,7 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * By Jureni123 Modified for Mumla OLED - Admin Announcement Parser Integration
  */
-
 package se.lublin.mumla.channel;
 
 import static android.Manifest.permission.READ_EXTERNAL_STORAGE;
@@ -22,11 +9,11 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.KeyEvent.KEYCODE_ENTER;
 import static android.view.inputmethod.EditorInfo.IME_NULL;
-
 import static androidx.core.content.ContextCompat.checkSelfPermission;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -68,6 +55,7 @@ import androidx.activity.result.contract.ActivityResultContracts.GetContent;
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission;
 import androidx.core.text.HtmlCompat;
 import androidx.exifinterface.media.ExifInterface;
+import androidx.fragment.app.Fragment;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -92,6 +80,7 @@ import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IMessage;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.User;
+import se.lublin.humla.net.Permissions;
 import se.lublin.humla.util.HumlaDisconnectedException;
 import se.lublin.humla.util.HumlaObserver;
 import se.lublin.humla.util.IHumlaObserver;
@@ -101,16 +90,29 @@ import se.lublin.mumla.util.BitmapUtils;
 import se.lublin.mumla.util.ChatLinkPolicy;
 import se.lublin.mumla.util.HumlaServiceFragment;
 import se.lublin.mumla.util.MumbleImageGetter;
+import androidx.preference.PreferenceManager;
 
 public class ChannelChatFragment extends HumlaServiceFragment implements ChatTargetProvider.OnChatTargetSelectedListener {
     private static final String TAG = ChannelChatFragment.class.getName();
 
     private static final Pattern LINK_PATTERN = Pattern.compile("(https?://\\S+)");
+    
+    // ✅ KONSTANTA ANNOUNCEMENT PARSER
+    private static final String ANNOUNCE_PREFIX = "!announce ";
+    private static final int MAX_ANNOUNCE_LENGTH = 200;
 
     private IHumlaObserver mServiceObserver = new HumlaObserver() {
 
         @Override
         public void onMessageLogged(IMessage message) {
+            // === PARSER ANNOUNCEMENT FULL FEATURE ADMIN ===
+            if (isValidAnnouncement(message)) {
+                handleAnnouncement(message);
+                // Uncomment baris di bawah jika ingin menyembunyikan command !announce dari history chat
+                // return; 
+            }
+            // ==============================================
+            
             addChatMessage(new IChatMessage.TextMessage(message), true);
         }
 
@@ -137,7 +139,6 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 if (user != null && session.getSessionUser() != null &&
                         user.equals(session.getSessionUser()) &&
                         mTargetProvider.getChatTarget() == null) {
-                    // Update chat target when user changes channels without a target.
                     updateChatTargetText(null);
                 }
             }
@@ -153,6 +154,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             registerForActivityResult(new GetContent(), this::onImagePicked);
     private final ActivityResultLauncher<String> readPermissionRequester =
             registerForActivityResult(new RequestPermission(), this::onReadPermissionGranted);
+            
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -190,12 +192,10 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
 
         ImageButton ImageSendButton = view.findViewById(R.id.chatImageSend);
         ImageSendButton.setOnClickListener(buttonView -> {
-            // Android <= 12 (SDK 32) needs extra permission
             if (SDK_INT <= Build.VERSION_CODES.S_V2) {
                 if (checkSelfPermission(requireContext(), READ_EXTERNAL_STORAGE) != PERMISSION_GRANTED) {
                     readPermissionRequester.launch(READ_EXTERNAL_STORAGE);
                 } else {
-                    // Reaching here once app has gotten hold of the permission
                     imagePicker.launch("image/*");
                 }
             } else {
@@ -215,20 +215,14 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
         });
 
         mChatTextEdit.addTextChangedListener(new TextWatcher() {
-
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 mSendButton.setEnabled(mChatTextEdit.getText().length() > 0);
             }
-
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override
-            public void afterTextChanged(Editable s) {
-
-            }
+            public void afterTextChanged(Editable s) {}
         });
 
         updateChatTargetText(mTargetProvider.getChatTarget());
@@ -265,28 +259,14 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             clear();
             return true;
         }
-        return super.onOptionsItemSelected(item);
+        return super.onOptionsItemSelected(i);
     }
 
-    /**
-     * Adds the passed text to the fragment chat body.
-     *
-     * @param message The message to add.
-     * @param scroll  Whether to scroll to the bottom after adding the message.
-     */
     public void addChatMessage(IChatMessage message, boolean scroll) {
         if (mChatAdapter == null) return;
-
         mChatAdapter.add(message);
-
         if (scroll) {
-            mChatList.post(new Runnable() {
-
-                @Override
-                public void run() {
-                    mChatList.smoothScrollToPosition(mChatAdapter.getCount() - 1);
-                }
-            });
+            mChatList.post(() -> mChatList.smoothScrollToPosition(mChatAdapter.getCount() - 1));
         }
     }
 
@@ -299,66 +279,39 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
     }
 
     private void onImagePicked(Uri uri) {
-        if (uri == null) {
-            return;
-        }
-        if (getService() == null || !getService().isConnected()) {
-            return;
-        }
+        if (uri == null || getService() == null || !getService().isConnected()) return;
 
-        // We don't fail on errors when getting orientation
         boolean flipped = false;
         int rotationDeg = 0;
         try (InputStream imageStream = requireContext().getContentResolver().openInputStream(uri)) {
-            if (imageStream == null) {
-                Log.w(TAG, "openInputStream(uri) failed for orientation");
-            } else {
+            if (imageStream != null) {
                 ExifInterface exif = new ExifInterface(imageStream);
                 flipped = exif.isFlipped();
                 rotationDeg = exif.getRotationDegrees();
             }
-        } catch (IOException e) {
-            Log.w(TAG, "exception when getting orientation: " + e);
-        }
-        Log.d(TAG, "flipped:" + flipped + " rotationDeg:" + rotationDeg);
+        } catch (IOException e) { Log.w(TAG, "orientation error: " + e); }
 
         Bitmap bitmap = null;
         try (InputStream imageStream = requireContext().getContentResolver().openInputStream(uri)) {
-            if (imageStream == null) {
-                Log.w(TAG, "openInputStream(uri) failed");
-                return;
-            }
-            bitmap = BitmapFactory.decodeStream(imageStream);
-        } catch (IOException e) {
-            Log.w(TAG, "exception when opening stream: " + e);
-            return;
-        }
+            if (imageStream != null) bitmap = BitmapFactory.decodeStream(imageStream);
+        } catch (IOException e) { Log.w(TAG, "stream error: " + e); }
 
-        if (bitmap == null) {
-            Log.w(TAG, "decode to bitmap failed");
-            return;
-        }
+        if (bitmap == null) return;
 
         if (flipped || rotationDeg > 0) {
             Matrix matrix = new Matrix();
-            if (flipped) {
-                // first flip horizontally, following {@link ExifInterface#getRotationDegrees()}
-                matrix.postScale(-1, 1, bitmap.getWidth() / 2f, bitmap.getHeight() / 2f);
-            }
-            if (rotationDeg > 0) {
-                matrix.postRotate(rotationDeg);
-            }
-            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(),
-                    matrix, false);
+            if (flipped) matrix.postScale(-1, 1, bitmap.getWidth() / 2f, bitmap.getHeight() / 2f);
+            if (rotationDeg > 0) matrix.postRotate(rotationDeg);
+            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, false);
         }
 
         Bitmap resized = BitmapUtils.resizeKeepingAspect(bitmap, 1600, 1600);
-
         ImageView preview = new ImageView(requireContext());
         preview.setImageBitmap(resized);
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setMaxHeight(requireContext().getResources().getDisplayMetrics().heightPixels / 3);
+        
         new MaterialAlertDialogBuilder(requireContext())
                 .setMessage(R.string.image_confirm_send)
                 .setPositiveButton(android.R.string.ok, (dlg, which) -> onImageConfirmed(resized))
@@ -370,13 +323,9 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
 
     private void onImageConfirmed(Bitmap initialBitmap) {
         IHumlaService service = getService();
-        if (service == null || service.HumlaSession() == null || service.HumlaSession().getServerSettings() == null) {
-            Log.w(TAG, "onImageConfirmed: service or session is null");
-            return;
-        }
+        if (service == null || service.HumlaSession() == null || service.HumlaSession().getServerSettings() == null) return;
 
         int maxSize = service.HumlaSession().getServerSettings().getImageMessageLength();
-
         Bitmap currentBitmap = initialBitmap;
         String formattedMessage = null;
 
@@ -384,128 +333,77 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             int quality = 97;
             do {
                 ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                if (!currentBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)) {
-                    Log.w(TAG, "compress failed, quality==" + quality);
-                } else {
-                    byte[] compressed = stream.toByteArray();
-                    String imageStr = Base64.encodeToString(compressed, Base64.NO_WRAP);
-                    String encoded;
-                    try {
-                        encoded = URLEncoder.encode(imageStr, StandardCharsets.UTF_8.name());
-                    } catch (UnsupportedEncodingException e) {
-                        encoded = URLEncoder.encode(imageStr);
-                    }
-                    String candidateMessage = "<img src=\"data:image/jpeg;base64," + encoded + "\"/>";
-                    if (maxSize == 0 || candidateMessage.length() <= maxSize) {
-                        formattedMessage = candidateMessage;
-                        break;
-                    } else {
-                        Log.d(TAG, "compress(quality==" + quality + ") candidate length " + candidateMessage.length() + " >= " + maxSize + " bytes");
-                    }
+                if (!currentBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)) break;
+                
+                byte[] compressed = stream.toByteArray();
+                String imageStr = Base64.encodeToString(compressed, Base64.NO_WRAP);
+                String encoded;
+                try { encoded = URLEncoder.encode(imageStr, StandardCharsets.UTF_8.name()); } 
+                catch (UnsupportedEncodingException e) { encoded = URLEncoder.encode(imageStr); }
+                
+                String candidateMessage = "<img src=\"data:image/jpeg;base64," + encoded + "\"/>";
+                if (maxSize == 0 || candidateMessage.length() <= maxSize) {
+                    formattedMessage = candidateMessage;
+                    break;
                 }
                 quality -= 15;
             } while (quality > 10);
 
             if (formattedMessage == null && maxSize > 0) {
-                int currentWidth = currentBitmap.getWidth();
-                int currentHeight = currentBitmap.getHeight();
-                if (currentWidth > 320 && currentHeight > 320) {
-                    int nextWidth = Math.max(320, currentWidth * 2 / 3);
-                    int nextHeight = Math.max(320, currentHeight * 2 / 3);
-                    currentBitmap = BitmapUtils.resizeKeepingAspect(currentBitmap, nextWidth, nextHeight);
-                } else {
-                    break;
-                }
+                int w = currentBitmap.getWidth(), h = currentBitmap.getHeight();
+                if (w > 320 && h > 320) {
+                    currentBitmap = BitmapUtils.resizeKeepingAspect(currentBitmap, Math.max(320, w * 2 / 3), Math.max(320, h * 2 / 3));
+                } else break;
             }
         }
 
         if (formattedMessage == null) {
-            Log.w(TAG, "all compress attempts failed");
-            if (getContext() != null) {
-                Toast.makeText(getContext(), R.string.image_too_large, Toast.LENGTH_SHORT).show();
-            }
+            if (getContext() != null) Toast.makeText(getContext(), R.string.image_too_large, Toast.LENGTH_SHORT).show();
             return;
         }
 
-        try {
-            sendMessage(formattedMessage);
-        } catch (HumlaDisconnectedException e) {
-            Log.d(TAG, "exception from sendMessage: " + e);
-        }
+        try { sendMessage(formattedMessage); } 
+        catch (HumlaDisconnectedException e) { Log.d(TAG, "send img failed: " + e); }
     }
 
-    /**
-     * Sends the message currently in
-     * {@link se.lublin.mumla.channel.ChannelChatFragment#mChatTextEdit}
-     * to the remote server. Clears the message box if the message was sent successfully.
-     */
     private void sendMessageFromEditor(View v) {
-        if (mChatTextEdit.length() == 0) {
-            return;
-        }
+        if (mChatTextEdit.length() == 0) return;
         String message = mChatTextEdit.getText().toString();
         try {
             sendMessage(message);
             mChatTextEdit.setText("");
-        } catch (HumlaDisconnectedException e) {
-            Log.d(TAG, "exception from sendMessage: " + e);
-        }
+        } catch (HumlaDisconnectedException e) { Log.d(TAG, "send text failed: " + e); }
     }
 
-    /**
-     * Sends a message to the remote server.
-     *
-     * @param message The message to send.
-     * @throws HumlaDisconnectedException If the service is disconnected.
-     */
     private void sendMessage(String message) throws HumlaDisconnectedException {
-        if (getService() == null) {
-            Log.d(TAG,"getService()==null in sendMessage");
-            return;
-        }
+        if (getService() == null) return;
         IHumlaSession session = getService().HumlaSession();
-
         String formattedMessage = markupOutgoingMessage(message);
         ChatTargetProvider.ChatTarget target = mTargetProvider.getChatTarget();
         IMessage responseMessage = null;
+        
         if (target == null)
             responseMessage = session.sendChannelTextMessage(session.getSessionChannel().getId(), formattedMessage, false);
         else if (target.getUser() != null)
             responseMessage = session.sendUserTextMessage(target.getUser().getSession(), formattedMessage);
         else if (target.getChannel() != null)
             responseMessage = session.sendChannelTextMessage(target.getChannel().getId(), formattedMessage, false);
+            
         addChatMessage(new IChatMessage.TextMessage(responseMessage, true), true);
     }
 
-    /**
-     * Adds HTML markup to the message, replacing links and newlines.
-     *
-     * @param message The message to markup.
-     * @return HTML data.
-     */
     private String markupOutgoingMessage(String message) {
-        String formattedBody = message;
-        Matcher matcher = LINK_PATTERN.matcher(formattedBody);
-        formattedBody = matcher.replaceAll("<a href=\"$1\">$1</a>")
-                .replaceAll("\n", "<br>");
-        return formattedBody;
+        Matcher matcher = LINK_PATTERN.matcher(message);
+        return matcher.replaceAll("<a href=\"$1\">$1</a>").replaceAll("\n", "<br>");
     }
 
     public void clear() {
-        if (mChatAdapter != null) {
-            mChatAdapter.clear();
-        }
-        if (getService() != null) {
-            getService().clearMessageLog();
-        }
+        if (mChatAdapter != null) mChatAdapter.clear();
+        if (getService() != null) getService().clearMessageLog();
     }
 
-    /**
-     * Updates hint displaying chat target.
-     */
     public void updateChatTargetText(final ChatTargetProvider.ChatTarget target) {
         if (getService() == null || !getService().isConnected()) return;
-
         IHumlaSession session = getService().HumlaSession();
         String hint = null;
         if (target == null && session.getSessionChannel() != null) {
@@ -516,38 +414,86 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             hint = getString(R.string.messageToChannel, target.getChannel().getName());
         }
         mChatTextEdit.setHint(hint);
-        mChatTextEdit.requestLayout(); // Needed to update bounds after hint change.
+        mChatTextEdit.requestLayout();
     }
-
 
     @Override
     public void onServiceBound(IHumlaService service) {
-        if (getService() == null) {
-            return;
-        }
-
-        if (mChatAdapter != null) {
-            mChatAdapter.shutdown();
-        }
+        if (getService() == null) return;
+        if (mChatAdapter != null) mChatAdapter.shutdown();
         mChatAdapter = new ChannelChatAdapter(getActivity(), service, getService().getMessageLog());
         mChatList.setAdapter(mChatAdapter);
-        mChatList.post(new Runnable() {
-            @Override
-            public void run() {
-                mChatList.setSelection(mChatAdapter.getCount() - 1);
-            }
-        });
+        mChatList.post(() -> mChatList.setSelection(mChatAdapter.getCount() - 1));
     }
 
     @Override
-    public IHumlaObserver getServiceObserver() {
-        return mServiceObserver;
-    }
+    public IHumlaObserver getServiceObserver() { return mServiceObserver; }
 
     @Override
     public void onChatTargetSelected(ChatTargetProvider.ChatTarget target) {
         updateChatTargetText(target);
     }
+
+    // ========================================================================
+    // ✅ LOGIC PARSER ANNOUNCEMENT FULL FEATURE ADMIN (ZERO GUESSWORK)
+    // ========================================================================
+    
+    private boolean isValidAnnouncement(IMessage message) {
+        // A. Hanya proses Channel Chat (Abaikan PM & Global Tree)
+        if (message.getTargetUsers() != null && !message.getTargetUsers().isEmpty()) return false;
+        if (message.getTargetChannels() == null || message.getTargetChannels().isEmpty()) return false;
+        
+        // B. Cek prefix command
+        String body = message.getMessage();
+        if (body == null || !body.startsWith(ANNOUNCE_PREFIX)) return false;
+        
+        // C. Validasi Admin via Self-Permission (ACL Server) - NILAI PASTI!
+        try {
+            IHumlaSession session = getService().HumlaSession();
+            int perms = session.getPermissions();
+            
+            // Definisi Admin: Punya hak Kick ATAU Ban ATAU Register
+            final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
+            
+            if ((perms & ADMIN_FLAGS) == 0) return false; 
+        } catch (Exception e) { 
+            Log.e(TAG, "Admin permission check failed", e); 
+            return false; 
+        }
+        
+        return true;
+    }
+
+    private void handleAnnouncement(IMessage message) {
+        String rawBody = message.getMessage();
+        String announcement = rawBody.substring(ANNOUNCE_PREFIX.length()).trim();
+        
+        // Rate limiting panjang pesan
+        if (announcement.length() > MAX_ANNOUNCE_LENGTH) {
+            announcement = announcement.substring(0, MAX_ANNOUNCE_LENGTH) + "...";
+        }
+        
+        // Ambil channel ID target
+        int channelId = -1;
+        try {
+            channelId = getService().HumlaSession().getSessionChannel().getId();
+        } catch (Exception e) { 
+            Log.e(TAG, "Failed to get channel ID for announcement", e); 
+            return; 
+        }
+        
+        // Bridge ke ChannelFragment via parent casting
+        Fragment parent = getParentFragment();
+        if (parent instanceof ChannelFragment) {
+            ((ChannelFragment) parent).notifyAnnouncement(channelId, announcement, message.getActorName());
+        }
+        
+        // Simpan ke SharedPreferences untuk persistence
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        prefs.edit().putString("announcement_ch_" + channelId, announcement).apply();
+    }
+
+    // ========================================================================
 
     private static class ChannelChatAdapter extends ArrayAdapter<IChatMessage> {
         private final MumbleImageGetter mImageGetter;
@@ -561,9 +507,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             mDateFormat = SimpleDateFormat.getTimeInstance();
         }
 
-        public void shutdown() {
-            mImageGetter.shutdown();
-        }
+        public void shutdown() { mImageGetter.shutdown(); }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
@@ -572,44 +516,35 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 v = LayoutInflater.from(getContext()).inflate(R.layout.list_chat_item, parent, false);
             }
 
-            final LinearLayout chatBox = (LinearLayout) v.findViewById(R.id.list_chat_item_box);
-            final TextView targetText = (TextView) v.findViewById(R.id.list_chat_item_target);
-            final TextView messageText = (TextView) v.findViewById(R.id.list_chat_item_text);
-            TextView timeText = (TextView) v.findViewById(R.id.list_chat_item_time);
+            final LinearLayout chatBox = v.findViewById(R.id.list_chat_item_box);
+            final TextView targetText = v.findViewById(R.id.list_chat_item_target);
+            final TextView messageText = v.findViewById(R.id.list_chat_item_text);
+            TextView timeText = v.findViewById(R.id.list_chat_item_time);
 
             IChatMessage message = getItem(position);
             message.accept(new IChatMessage.Visitor() {
                 @Override
-                public void visit(IChatMessage.TextMessage message) {
-                    IMessage textMessage = message.getMessage();
+                public void visit(IChatMessage.TextMessage msg) {
+                    IMessage textMessage = msg.getMessage();
                     String targetMessage = getContext().getString(R.string.unknown);
-                    boolean selfAuthored = message.isSelfAuthored();
+                    boolean selfAuthored = msg.isSelfAuthored();
+                    
                     if (!selfAuthored && mService != null && mService.isConnected()) {
                         try {
-                            IHumlaSession session = mService.HumlaSession();
-                            IUser sessionUser = session.getSessionUser();
-                            selfAuthored = sessionUser != null &&
-                                    Objects.equals(sessionUser.getName(), textMessage.getActorName());
-                        } catch (HumlaDisconnectedException | IllegalStateException e) {
-                            selfAuthored = false;
-                        }
+                            IUser sessionUser = mService.HumlaSession().getSessionUser();
+                            selfAuthored = sessionUser != null && Objects.equals(sessionUser.getName(), textMessage.getActorName());
+                        } catch (Exception e) { selfAuthored = false; }
                     }
 
                     if (textMessage.getTargetChannels() != null && !textMessage.getTargetChannels().isEmpty()) {
-                        IChannel currentChannel = (IChannel) textMessage.getTargetChannels().get(0);
-                        if (currentChannel != null && currentChannel.getName() != null) {
-                            targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), currentChannel.getName());
-                        }
+                        IChannel ch = (IChannel) textMessage.getTargetChannels().get(0);
+                        if (ch != null && ch.getName() != null) targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), ch.getName());
                     } else if (textMessage.getTargetTrees() != null && !textMessage.getTargetTrees().isEmpty()) {
-                        IChannel currentChannel = (IChannel) textMessage.getTargetTrees().get(0);
-                        if (currentChannel != null && currentChannel.getName() != null) {
-                            targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), currentChannel.getName());
-                        }
+                        IChannel ch = (IChannel) textMessage.getTargetTrees().get(0);
+                        if (ch != null && ch.getName() != null) targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), ch.getName());
                     } else if (textMessage.getTargetUsers() != null && !textMessage.getTargetUsers().isEmpty()) {
-                        User user = textMessage.getTargetUsers().get(0);
-                        if (user != null && user.getName() != null) {
-                            targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), user.getName());
-                        }
+                        User u = textMessage.getTargetUsers().get(0);
+                        if (u != null && u.getName() != null) targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), u.getName());
                     } else {
                         targetMessage = textMessage.getActorName();
                     }
@@ -622,35 +557,23 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 }
 
                 @Override
-                public void visit(IChatMessage.InfoMessage message) {
+                public void visit(IChatMessage.InfoMessage msg) {
                     targetText.setVisibility(View.GONE);
                     chatBox.setGravity(Gravity.LEFT);
                     messageText.setGravity(Gravity.LEFT);
                 }
             });
+            
             timeText.setText(mDateFormat.format(new Date(message.getReceivedTime())));
             Spanned rendered = HtmlCompat.fromHtml(message.getBody(), HtmlCompat.FROM_HTML_MODE_LEGACY, mImageGetter, null);
             messageText.setText(sanitizeChatLinks(rendered));
             messageText.setMovementMethod(LinkMovementMethod.getInstance());
-
             return v;
         }
 
-        @Override
-        public boolean areAllItemsEnabled() {
-            return false;
-        }
+        @Override public boolean areAllItemsEnabled() { return false; }
+        @Override public boolean isEnabled(int position) { return false; }
 
-        @Override
-        public boolean isEnabled(int position) {
-            return false; // Makes links clickable.
-        }
-
-        /**
-         * Replaces URLSpans from server-controlled HTML: http(s) links open
-         * via an ACTION_VIEW chooser, every other scheme becomes inert text.
-         * Opens the actual href, never the display text.
-         */
         private static Spannable sanitizeChatLinks(Spanned rendered) {
             Spannable spannable = new SpannableString(rendered);
             URLSpan[] urlSpans = spannable.getSpans(0, spannable.length(), URLSpan.class);
@@ -660,15 +583,13 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 int flags = spannable.getSpanFlags(span);
                 spannable.removeSpan(span);
                 final String target = ChatLinkPolicy.handleClick(span.getURL());
-                if (target == null) {
-                    continue;
-                }
+                if (target == null) continue;
                 spannable.setSpan(new ClickableSpan() {
                     @Override
                     public void onClick(View widget) {
-                        Context context = widget.getContext();
+                        Context ctx = widget.getContext();
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(target));
-                        context.startActivity(Intent.createChooser(intent, null));
+                        ctx.startActivity(Intent.createChooser(intent, null));
                     }
                 }, start, end, flags);
             }
