@@ -259,7 +259,8 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             clear();
             return true;
         }
-        return super.onOptionsItemSelected(i);
+        // ✅ PERBAIKAN: Ganti 'i' menjadi 'item'
+        return super.onOptionsItemSelected(item);
     }
 
     public void addChatMessage(IChatMessage message, boolean scroll) {
