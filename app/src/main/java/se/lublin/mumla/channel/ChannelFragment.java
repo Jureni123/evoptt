@@ -487,7 +487,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     }
 
     // ✅ METHOD BARU: UPDATE UI CHANNEL INFO
-    private void updateChannelInfo(String text) {
+    public void updateChannelInfo(String text) {
         if (mTvChannelInfo == null) return;
         
         if (text != null && !text.trim().isEmpty()) {
