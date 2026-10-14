@@ -121,8 +121,21 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 try {
                     String payload = body.substring(AVATAR_PREFIX.length());
                     
-                    // Ambil session ID pengirim
-                    int senderSessionId = message.getActorSession();
+                    // ✅ FIX: Ambil session ID dengan cara yang kompatibel
+                    // Mencari user berdasarkan nama pengirim karena getActorSession() tidak tersedia
+                    int senderSessionId = -1;
+                    String actorName = message.getActorName();
+                    
+                    if (actorName != null && getService() != null && getService().isConnected()) {
+                        try {
+                            IUser foundUser = getService().HumlaSession().getUser(actorName);
+                            if (foundUser != null) {
+                                senderSessionId = foundUser.getSession();
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "Could not find user by name: " + actorName);
+                        }
+                    }
                     
                     if (senderSessionId > 0 && payload != null && !payload.isEmpty()) {
                         // Simpan ke SharedPreferences per-session-ID
