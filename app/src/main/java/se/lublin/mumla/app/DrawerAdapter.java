@@ -30,6 +30,7 @@ import se.lublin.mumla.R;
 
 /**
  * Created by andrew on 01/08/13.
+ * Modified: Added Profile Photo menu item
  */
 public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
 
@@ -37,14 +38,7 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
      * Provides context for the drawer module.
      */
     public interface DrawerDataProvider {
-
-        /**
-         * @return true if connected, false otherwise.
-         */
         public boolean isConnected();
-        /**
-         * @return The name of the connected server. If not connected, then null.
-         */
         public String getConnectedServerName();
     }
 
@@ -54,6 +48,10 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
     public static final int ITEM_PINNED_CHANNELS = 2;
     public static final int ITEM_INFO = 3;
     public static final int ITEM_ACCESS_TOKENS = 4;
+    
+    // ✅ MENU BARU: FOTO PROFIL
+    public static final int ITEM_PROFILE_PHOTO = 7; 
+
     public static final int HEADER_SERVERS = 5;
     public static final int ITEM_FAVOURITES = 6;
     public static final int HEADER_GENERAL = 9;
@@ -61,8 +59,6 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
 
     private static final int HEADER_TYPE = 0;
     private static final int ITEM_TYPE = 1;
-
-    // TODO clean this up.
 
     public static class DrawerRow {
         int id;
@@ -75,7 +71,6 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
     }
 
     public static class DrawerHeader extends DrawerRow {
-
         public DrawerHeader(int id, String title) {
             super(id, title);
         }
@@ -95,10 +90,16 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
     public DrawerAdapter(Context context, DrawerDataProvider provider) {
         super(context, 0);
         mProvider = provider;
+        
         add(new DrawerAdapter.DrawerHeader(HEADER_CONNECTED_SERVER, context.getString(R.string.drawer_not_connected)));
         add(new DrawerAdapter.DrawerItem(ITEM_SERVER, context.getString(R.string.drawer_server), R.drawable.ic_action_channels));
         add(new DrawerAdapter.DrawerItem(ITEM_PINNED_CHANNELS, context.getString(R.string.drawer_pinned), R.drawable.ic_action_comment));
         add(new DrawerAdapter.DrawerItem(ITEM_INFO, context.getString(R.string.information), R.drawable.ic_action_info_dark));
+        
+        // ✅ TAMBAHKAN MENU FOTO PROFIL DI SINI
+        // Menggunakan ic_action_info_dark sementara agar tidak error saat build jika icon kamera belum ada
+        add(new DrawerAdapter.DrawerItem(ITEM_PROFILE_PHOTO, "Foto Profil", R.drawable.ic_action_info_dark)); 
+        
         add(new DrawerAdapter.DrawerItem(ITEM_ACCESS_TOKENS, context.getString(R.string.drawer_tokens), R.drawable.ic_action_save));
         add(new DrawerAdapter.DrawerHeader(HEADER_SERVERS, context.getString(R.string.drawer_header_servers)));
         add(new DrawerAdapter.DrawerItem(ITEM_FAVOURITES, context.getString(R.string.drawer_favorites), R.drawable.ic_action_favourite_on));
@@ -115,7 +116,6 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
                 v = LayoutInflater.from(getContext()).inflate(R.layout.list_drawer_header, parent, false);
             else if(viewType == ITEM_TYPE)
                 v = LayoutInflater.from(getContext()).inflate(R.layout.list_drawer_item, parent, false);
-
         }
 
         if(viewType == HEADER_TYPE) {
@@ -143,13 +143,11 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
 
             boolean enabled = isEnabled(position);
 
-            // Set text and icon color+alpha based on enabled/disabled state
             int textColor = title.getCurrentTextColor();
-            textColor &= 0x00FFFFFF; // Clear alpha bits
-            textColor |= enabled ? 0xFF000000 : 0x55000000; // Set alpha bits depending on whether the state is enabled or disabled
+            textColor &= 0x00FFFFFF; 
+            textColor |= enabled ? 0xFF000000 : 0x55000000; 
             title.setTextColor(textColor);
             icon.setColorFilter(textColor, PorterDuff.Mode.MULTIPLY);
-
         }
 
         return v;
@@ -175,15 +173,15 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
             switch ((int) getItemId(position)) {
                 case ITEM_SERVER:
                 case ITEM_INFO:
+                case ITEM_PROFILE_PHOTO: // ✅ AKTIFKAN MENU FOTO PROFIL SAAT CONNECTED
                 case ITEM_ACCESS_TOKENS:
                 case ITEM_PINNED_CHANNELS:
                     return mProvider.isConnected();
-//                    return false;
                 default:
                     return true;
             }
         }
-        return false; // Default false for headers
+        return false; 
     }
 
     @Override
