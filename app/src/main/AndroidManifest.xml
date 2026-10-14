@@ -29,6 +29,9 @@
     <!-- Di Android 13+, izin ini otomatis diabaikan sistem -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
+    <!-- ✅ IZIN BARU: KHUSUS ANDROID 13+ UNTUK AKSES GALERI FOTO -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
     <!-- Izin Bluetooth Modern -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
