@@ -5,11 +5,15 @@
 package se.lublin.mumla.channel;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -32,6 +36,8 @@ import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.SwitchCompat;
@@ -51,7 +57,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -83,6 +92,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private static final String INFO_PREFIX = "::INFO::";
     private static final int MAX_INFO_LENGTH = 200;
     private static final String PREF_AVATAR_PREFIX = "avatar_session_";
+    
+    // ✅ KONSTANTA UPLOAD AVATAR
+    private static final String PREF_MY_GIF_PATH = "my_gif_path";
+    private static final String PREF_MY_AVATAR_BASE64 = "my_avatar_base64";
+    private static final int MAX_AVATAR_SIZE = 96; 
 
     // Variabel Lama (ViewPager, PTT, dll)
     private ViewPager mViewPager;
@@ -116,6 +130,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     
     // ✅ VARIABEL TOMBOL EDIT INFO / SUPPORT PICKER (POJOK KANAN ATAS)
     private ImageButton mBtnEditInfo;
+    
+    // ✅ VARIABEL TOMBOL UPLOAD AVATAR
+    private ImageButton mBtnUploadAvatar;
 
     private ChatTarget mChatTarget;
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<>();
@@ -124,6 +141,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private View mBottomControlBar;
     private View mBtnGlobalSet, mBtnAudioMenu, mBtnSessionMenu, mBtnListCh;
     private FrameLayout mPttContainer;
+    
+    // ✅ LAUNCHER UNTUK PILIH GAMBAR
+    private ActivityResultLauncher<String> imagePicker;
 
     // OBSERVER LENGKAP
     private HumlaObserver mObserver = new HumlaObserver() {
@@ -149,10 +169,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                         Log.d(TAG, "Auto-resend info triggered for: " + user.getName());
                     }
                     
-                    // ✅ AUTO-RESEND AVATAR SENDIRI KE USER BARU
-                    String myAvatar = prefs.getString("my_avatar_payload", null);
-                    if (myAvatar != null && !myAvatar.isEmpty()) {
-                        session.sendChannelTextMessage(newChannel.getId(), "::AVATAR::" + myAvatar, false);
+                    // ✅ AUTO-RESEND AVATAR SENDIRI KE USER BARU VIA COMMENT
+                    String myAvatarBase64 = prefs.getString(PREF_MY_AVATAR_BASE64, null);
+                    if (myAvatarBase64 != null && !myAvatarBase64.isEmpty()) {
+                        session.sendChannelTextMessage(newChannel.getId(), "::AVATAR::" + myAvatarBase64 + "::END::", false);
                         Log.d(TAG, "Auto-resend avatar triggered for: " + user.getName());
                     }
                 }
@@ -210,6 +230,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+        
+        // ✅ INISIALISASI IMAGE PICKER
+        imagePicker = registerForActivityResult(
+            new ActivityResultContracts.GetContent(), 
+            this::onImageSelectedForAvatar
+        );
     }
 
     @Override
@@ -286,7 +312,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             // ✅ TOMBOL ADMIN JADI PEMBUKA DYNAMIC SUPPORT PICKER
             mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
             mBtnEditInfo.setOnClickListener(v -> {
-                // Cek cooldown global
                 SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                 long lastClickTime = prefs.getLong("last_support_click", 0);
                 if (System.currentTimeMillis() - lastClickTime < 3000) {
@@ -295,6 +320,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 }
                 showDynamicSupportPicker();
             });
+            
+            // ✅ TOMBOL BARU: UPLOAD AVATAR (Letakkan di layout header_single_channel.xml)
+            mBtnUploadAvatar = mHeaderSingleCh.findViewById(R.id.btn_upload_avatar);
+            if (mBtnUploadAvatar != null) {
+                mBtnUploadAvatar.setOnClickListener(v -> imagePicker.launch("image/*"));
+            }
 
             // ✅ SMART ADMIN INPUT (LONG PRESS HEADER)
             mAdminInputContainer = mHeaderSingleCh.findViewById(R.id.admin_input_container);
@@ -372,6 +403,106 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         configureInput();
         return view;
+    }
+
+    // ============================================================
+    // ✅ LOGIKA UPLOAD & RESEND AVATAR (HYBRID: GIF LOKAL + BASE64 COMMENT)
+    // ============================================================
+    
+    private void onImageSelectedForAvatar(Uri uri) {
+        if (uri == null || getService() == null || !getService().isConnected()) return;
+
+        try {
+            InputStream is = requireContext().getContentResolver().openInputStream(uri);
+            Bitmap bitmap = BitmapFactory.decodeStream(is);
+            if (is != null) is.close();
+
+            if (bitmap == null) {
+                Toast.makeText(getContext(), "Gagal memproses gambar", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // 1. Kompres frame pertama jadi PNG kecil untuk dikirim via comment
+            Bitmap scaled = Bitmap.createScaledBitmap(bitmap, MAX_AVATAR_SIZE, MAX_AVATAR_SIZE, true);
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            scaled.compress(Bitmap.CompressFormat.PNG, 100, stream);
+            byte[] textureData = stream.toByteArray();
+            String base64Frame = android.util.Base64.encodeToString(textureData, android.util.Base64.NO_WRAP);
+
+            // 2. Simpan file asli (GIF/PNG) agar bisa bergerak di HP sendiri
+            String gifPath = saveOriginalFile(uri);
+            
+            // 3. Kirim ke semua user di channel via comment prefix
+            IHumlaSession session = getService().HumlaSession();
+            IChannel currentCh = session.getSessionChannel();
+            if (currentCh != null) {
+                session.sendChannelTextMessage(currentCh.getId(), "::AVATAR::" + base64Frame + "::END::", false);
+            }
+
+            // 4. Simpan lokal
+            PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .edit()
+                .putString(PREF_MY_GIF_PATH, gifPath)
+                .putString(PREF_MY_AVATAR_BASE64, base64Frame)
+                .apply();
+
+            Toast.makeText(getContext(), "Foto profil berhasil diperbarui!", Toast.LENGTH_SHORT).show();
+            refreshSingleChannelView();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing avatar", e);
+            Toast.makeText(getContext(), "Gagal mengupload foto", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private String saveOriginalFile(Uri uri) {
+        try {
+            File dir = new File(requireContext().getFilesDir(), "avatars");
+            if (!dir.exists()) dir.mkdirs();
+            
+            String fileName = "my_avatar_" + System.currentTimeMillis() + ".gif";
+            File destFile = new File(dir, fileName);
+            
+            InputStream inputStream = requireContext().getContentResolver().openInputStream(uri);
+            FileOutputStream outputStream = new FileOutputStream(destFile);
+            
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            
+            inputStream.close();
+            outputStream.close();
+            return destFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to save original file", e);
+            return null;
+        }
+    }
+
+    // ✅ RESEND OTOMATIS SAAT CONNECT ULANG
+    private void resendMyAvatar() {
+        if (!isAdded() || getActivity() == null) return;
+        
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String base64 = prefs.getString(PREF_MY_AVATAR_BASE64, null);
+        
+        if (base64 == null || base64.isEmpty()) return;
+
+        try {
+            IHumlaService layanan = getService();
+            if (layanan == null || !layanan.isConnected()) return;
+            
+            IHumlaSession sesi = layanan.HumlaSession();
+            IChannel currentCh = sesi.getSessionChannel();
+            if (currentCh != null) {
+                sesi.sendChannelTextMessage(currentCh.getId(), "::AVATAR::" + base64 + "::END::", false);
+                Log.i(TAG, "✅ Avatar resent successfully via comment");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to resend avatar", e);
+        }
     }
 
     // ============================================================
@@ -862,7 +993,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
         mTvAnnouncementOverlay=null; mTvChannelInfo=null; mImgFloatingSupport=null;
         mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null;
-        mBtnEditInfo=null; 
+        mBtnEditInfo=null; mBtnUploadAvatar=null;
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
     }
 
@@ -878,6 +1009,8 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 mSingleChContainer.setVisibility(View.VISIBLE);
                 refreshSingleChannelView();
             }
+            // ✅ RESEND AVATAR SAAT CONNECT
+            resendMyAvatar();
         } else {
             if (mSingleChContainer != null) mSingleChContainer.setVisibility(View.GONE);
         }
