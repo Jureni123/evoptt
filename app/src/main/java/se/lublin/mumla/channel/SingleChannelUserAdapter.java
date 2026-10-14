@@ -196,6 +196,29 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         }
         
         notifyDataSetChanged();
+        
+        // ✅ TAMBAHKAN INI: Paksa cek ulang avatar diri sendiri setelah list di-refresh
+        checkAndRefreshMyAvatar(); 
+    }
+
+    // ✅ METHOD BARU: Cek apakah ada avatar baru di storage dan refresh barisnya
+    private void checkAndRefreshMyAvatar() {
+        try {
+            if (mContext instanceof MumlaActivity) {
+                MumlaActivity activity = (MumlaActivity) mContext;
+                if (activity.getService() != null && activity.getService().isConnected()) {
+                    int mySessionId = activity.getService().HumlaSession().getSessionId();
+                    
+                    // Cari posisi diri sendiri di list
+                    for (int i = 0; i < mUsers.size(); i++) {
+                        if (mUsers.get(i).getSession() == mySessionId) {
+                            notifyItemChanged(i); // Trigger onBindViewHolder ulang untuk baris ini
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) { /* Abaikan */ }
     }
 
     // Overload method lama agar kompatibel
