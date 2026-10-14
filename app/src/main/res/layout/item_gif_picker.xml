@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ITEM LAYOUT: Satu Kotak GIF di Picker -->
+<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/btn_gif_item"
+    android:layout_width="72dp"
+    android:layout_height="72dp"
+    android:layout_margin="4dp"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:scaleType="centerInside"
+    android:padding="8dp"
+    android:contentDescription="GIF Support Item"/>
