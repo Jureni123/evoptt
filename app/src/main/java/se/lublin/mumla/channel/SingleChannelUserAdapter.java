@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting Version + Profile Photo Support
+ * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting + Dynamic Avatar Per-User
  */
 package se.lublin.mumla.channel;
 
@@ -23,7 +23,6 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.bumptech.glide.request.RequestOptions;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,20 +31,20 @@ import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.IUser;
 import se.lublin.humla.model.TalkState;
 import se.lublin.mumla.R;
+import se.lublin.mumla.app.MumlaActivity;
 import se.lublin.mumla.drawable.CircleDrawable;
 
 public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannelUserAdapter.ViewHolder> {
 
     private final Context mContext;
     private final List<IUser> mUsers = new ArrayList<>();
-    private final AvatarCache mAvatarCache = new AvatarCache();
     private OnUserClickListener mListener;
     
     // Simpan channel saat ini untuk cek badge parent
     private IChannel mCurrentChannel;
     
-    // Konstanta path foto profil (sama dengan di MumlaActivity)
-    private static final String PREF_PROFILE_PHOTO_PATH = "profile_photo_path";
+    // ✅ KONSTANTA STORAGE PER-USER
+    private static final String PREF_AVATAR_PREFIX = "avatar_session_";
 
     public interface OnUserClickListener {
         void onUserClick(IUser user);
@@ -110,42 +109,41 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             holder.tvLocationComment.setVisibility(View.GONE);
         }
 
-        // 4. ✅ LOGIKA BARU: CEK FOTO PROFIL ATAU TALK STATE
-        boolean hasCustomPhoto = false;
+        // 4. ✅ LOGIKA BARU: LOAD AVATAR PER-USER DARI BASE64
+        boolean hasCustomAvatar = false;
         
-        // Hanya tampilkan foto profil custom jika ini adalah USER SENDIRI
-        // (Karena sistem belum sync antar device, kita fokus tampilkan foto diri sendiri dulu)
         try {
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
-            String photoPath = prefs.getString(PREF_PROFILE_PHOTO_PATH, null);
+            int sessionId = user.getSession();
+            Bitmap avatarBitmap = MumlaActivity.getAvatarForUser(mContext, sessionId);
             
-            if (photoPath != null && !photoPath.isEmpty()) {
-                File photoFile = new File(photoPath);
-                if (photoFile.exists()) {
-                    hasCustomPhoto = true;
-                    
-                    // Load menggunakan Glide agar support GIF animasi & Circle Crop
-                    RequestOptions options = new RequestOptions()
-                            .circleCrop()
-                            .placeholder(R.drawable.outline_circle_talking_off)
-                            .error(R.drawable.outline_circle_talking_off);
-                            
-                    Glide.with(mContext)
-                         .load(photoFile)
-                         .apply(options)
-                         .into(holder.imgAvatarState);
-                }
+            if (avatarBitmap != null) {
+                hasCustomAvatar = true;
+                
+                // Load Bitmap ke ImageView dengan Circle Crop via Glide
+                RequestOptions options = new RequestOptions()
+                        .circleCrop()
+                        .placeholder(R.drawable.outline_circle_talking_off)
+                        .error(R.drawable.outline_circle_talking_off);
+                        
+                Glide.with(mContext)
+                     .load(avatarBitmap)
+                     .apply(options)
+                     .into(holder.imgAvatarState);
             }
         } catch (Exception e) {
-            // Jika error load foto, fallback ke bawah
-            hasCustomPhoto = false;
+            hasCustomAvatar = false;
         }
 
-        // Jika tidak ada foto custom, ATAU user sedang dalam status khusus (bicara/mute/deaf),
-        // maka timpa dengan Talk State Drawable agar status audio tetap terlihat jelas
-        if (!hasCustomPhoto || isSpecialState(user)) {
+        // 5. ✅ JIKA TIDAK ADA AVATAR CUSTOM → PAKAI TALK STATE DRAWABLE
+        // Jika ADA avatar custom → tetap tampilkan avatar, tapi tambah indikator status
+        if (!hasCustomAvatar) {
             Drawable stateDrawable = getTalkStateDrawable(user);
             holder.imgAvatarState.setImageDrawable(stateDrawable);
+        } else {
+            // Avatar custom sudah di-load oleh Glide di atas
+            // Tambahkan indikator status audio sebagai overlay kecil (opsional)
+            // Untuk sekarang, avatar custom tetap tampil meski user sedang bicara
+            // Ini lebih baik daripada ditimpa total
         }
 
         // Setup Click Listener
@@ -156,19 +154,6 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         holder.imgMoreOptions.setOnClickListener(v -> {
             if (mListener != null) mListener.onMoreClick(user, v);
         });
-    }
-
-    /**
-     * Cek apakah user sedang dalam status audio khusus yang harus ditampilkan
-     */
-    private boolean isSpecialState(IUser user) {
-        if (user == null) return false;
-        return user.isSelfDeafened() || 
-               user.isDeafened() || 
-               user.isSelfMuted() || 
-               user.isMuted() || 
-               user.isSuppressed() || 
-               isTalkingState(user.getTalkState());
     }
 
     @Override
@@ -247,7 +232,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
                state == TalkState.WHISPERING;
     }
 
-    // === LOGIKA DRAWABLE (SAMA PERSIS DENGAN CHANNELLISTADAPTER) ===
+    // === LOGIKA DRAWABLE STATUS AUDIO (FALLBACK JIKA TIDAK ADA AVATAR CUSTOM) ===
     public Drawable getTalkStateDrawable(IUser user) {
         if (user == null) {
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
@@ -264,12 +249,15 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_suppressed);
         } else if (isTalkingState(user.getTalkState())) {
             return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_on);
-        } else {
-            Bitmap bitmap = mAvatarCache.get(user);
-            if (bitmap != null) {
-                return new CircleDrawable(mContext.getResources(), bitmap);
-            }
         }
         return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
+    }
+
+    /**
+     * ✅ HELPER BARU: Ambil Avatar Bitmap untuk User (Dipakai oleh ChannelFragment untuk Header Stage)
+     */
+    public Bitmap getAvatarBitmapForUser(IUser user) {
+        if (user == null) return null;
+        return MumlaActivity.getAvatarForUser(mContext, user.getSession());
     }
 }
