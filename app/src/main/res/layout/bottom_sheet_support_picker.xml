@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BOTTOM SHEET: Safe Support GIF Picker (Anti-Vandal) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="#FFFFFF">
+
+    <!-- JUDUL PICKER -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Pilih Animasi Support"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#0D47A1"
+        android:gravity="center"
+        android:layout_marginBottom="20dp"/>
+
+    <!-- GRID PILIHAN GIF (4 KOLOM) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:weightSum="4">
+
+        <!-- TOMBOL CLAP -->
+        <ImageButton
+            android:id="@+id/btn_gif_clap"
+            android:layout_width="0dp"
+            android:layout_height="70dp"
+            android:layout_weight="1"
+            android:src="@drawable/ton_clap"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="centerInside"
+            android:contentDescription="Tepuk Tangan"/>
+
+        <!-- TOMBOL HEART (Placeholder Sementara Pakai ton_clap) -->
+        <ImageButton
+            android:id="@+id/btn_gif_heart"
+            android:layout_width="0dp"
+            android:layout_height="70dp"
+            android:layout_weight="1"
+            android:src="@drawable/ton_clap" 
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="centerInside"
+            android:contentDescription="Hati"/>
+
+        <!-- TOMBOL FIRE (Placeholder Sementara Pakai ton_clap) -->
+        <ImageButton
+            android:id="@+id/btn_gif_fire"
+            android:layout_width="0dp"
+            android:layout_height="70dp"
+            android:layout_weight="1"
+            android:src="@drawable/ton_clap"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="centerInside"
+            android:contentDescription="Api"/>
+
+        <!-- TOMBOL LAUGH (Placeholder Sementara Pakai ton_clap) -->
+        <ImageButton
+            android:id="@+id/btn_gif_laugh"
+            android:layout_width="0dp"
+            android:layout_height="70dp"
+            android:layout_weight="1"
+            android:src="@drawable/ton_clap"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="centerInside"
+            android:contentDescription="Ngakak"/>
+    </LinearLayout>
+
+    <!-- CATATAN FOOTER -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Upload GIF Sendiri (Segera Hadir)"
+        android:textSize="12sp"
+        android:textColor="#90CAF9"
+        android:gravity="center"
+        android:layout_marginTop="20dp"/>
+</LinearLayout>
