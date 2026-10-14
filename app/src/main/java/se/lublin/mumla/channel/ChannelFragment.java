@@ -1,12 +1,13 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Dynamic Support GIF Scanner
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Dynamic Support GIF Scanner + Avatar Per-User
  */
 package se.lublin.mumla.channel;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
@@ -81,6 +82,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     // ✅ KONSTANTA HYBRID SYSTEM
     private static final String INFO_PREFIX = "::INFO::";
     private static final int MAX_INFO_LENGTH = 200;
+    private static final String PREF_AVATAR_PREFIX = "avatar_session_";
 
     // Variabel Lama (ViewPager, PTT, dll)
     private ViewPager mViewPager;
@@ -138,15 +140,24 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 IHumlaSession session = getService().HumlaSession();
                 if (user.getSession() != session.getSessionId() && getService().isConnected()) {
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                    
+                    // Auto-resend info channel
                     String cachedJson = prefs.getString("channel_info_ch_" + newChannel.getId(), null);
                     if (cachedJson != null && !cachedJson.isEmpty()) {
                         String messageToSend = INFO_PREFIX + cachedJson;
                         session.sendChannelTextMessage(newChannel.getId(), messageToSend, false);
                         Log.d(TAG, "Auto-resend info triggered for: " + user.getName());
                     }
+                    
+                    // ✅ AUTO-RESEND AVATAR SENDIRI KE USER BARU
+                    String myAvatar = prefs.getString("my_avatar_payload", null);
+                    if (myAvatar != null && !myAvatar.isEmpty()) {
+                        session.sendChannelTextMessage(newChannel.getId(), "::AVATAR::" + myAvatar, false);
+                        Log.d(TAG, "Auto-resend avatar triggered for: " + user.getName());
+                    }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error auto-resending info", e);
+                Log.e(TAG, "Error auto-resending info/avatar", e);
             }
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
                 refreshSingleChannelView();
@@ -367,10 +378,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     // ✅ FITUR BARU: DYNAMIC SUPPORT GIF SCANNER (AUTO-DISCOVERY)
     // ============================================================
 
-    /**
-     * Menampilkan picker GIF dinamis yang otomatis scan folder drawable.
-     * User hanya bisa KLIK, tidak bisa MENGETIK.
-     */
     private void showDynamicSupportPicker() {
         BottomSheetDialog picker = new BottomSheetDialog(requireContext());
         View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_support_picker, null);
@@ -378,12 +385,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         RecyclerView rv = sheetView.findViewById(R.id.rv_gif_picker);
         if (rv != null) {
-            rv.setLayoutManager(new GridLayoutManager(requireContext(), 4)); // 4 kolom
+            rv.setLayoutManager(new GridLayoutManager(requireContext(), 4));
             
-            // SCAN GIF OTOMATIS DARI DRAWABLE
             List<GifItem> dynamicGifs = scanDynamicGifs();
             
-            // Set Adapter Dinamis
             rv.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 @NonNull
                 @Override
@@ -398,31 +403,26 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                     ImageButton btn = holder.itemView.findViewById(R.id.btn_gif_item);
                     GifItem item = dynamicGifs.get(position);
                     
-                    // Load GIF menggunakan Glide agar animasi jalan di picker
                     Glide.with(requireContext())
                          .asGif()
                          .load(item.resId)
                          .into(btn);
                     
                     btn.setOnClickListener(v -> {
-                        // A. TAMPILKAN DI HP SENDIRI INSTAN
                         playFloatingSupport(item.resId);
                         
-                        // B. KIRIM TRIGGER MENGGUNAKAN NAMA FILE SEBAGAI KODE AMAN
                         try {
                             if (getService() != null && getService().isConnected()) {
                                 IHumlaSession session = getService().HumlaSession();
                                 IChannel currentCh = session.getSessionChannel();
                                 
                                 if (currentCh != null) {
-                                    // Trigger = Nama File GIF (misal: "ton_clap")
                                     session.sendChannelTextMessage(
                                         currentCh.getId(), 
                                         "::SUPPORT::" + item.triggerName, 
                                         false
                                     );
                                     
-                                    // Update cooldown
                                     PreferenceManager.getDefaultSharedPreferences(requireContext())
                                         .edit()
                                         .putLong("last_support_click", System.currentTimeMillis())
@@ -450,9 +450,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         picker.show();
     }
 
-    /**
-     * Class helper untuk menyimpan data GIF hasil scan
-     */
     private static class GifItem {
         int resId;
         String triggerName;
@@ -463,10 +460,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         }
     }
 
-    /**
-     * Scan otomatis semua resource di R.drawable yang mengandung kata kunci GIF.
-     * Return List<GifItem> berisi Resource ID dan Nama Trigger.
-     */
     private List<GifItem> scanDynamicGifs() {
         List<GifItem> gifList = new ArrayList<>();
         
@@ -476,8 +469,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             for (Field field : fields) {
                 String resourceName = field.getName();
                 
-                // FILTER: Ambil resource yang namanya mengandung pola GIF support
-                // Bisa disesuaikan dengan naming convention kamu (misal: sup_, anim_, atau nama gif spesifik)
                 boolean isSupportGif = resourceName.equals("ton_clap") || 
                                        resourceName.equals("kpop") || 
                                        resourceName.equals("view") || 
@@ -488,7 +479,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 
                 if (isSupportGif) {
                     int resId = field.getInt(null);
-                    // Gunakan nama resource sebagai trigger string yang aman
                     gifList.add(new GifItem(resId, resourceName)); 
                 }
             }
@@ -496,7 +486,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             Log.e(TAG, "Error scanning gifs via reflection", e);
         }
         
-        // Fallback jika scan gagal atau kosong, pastikan ton_clap selalu ada
         if (gifList.isEmpty()) {
             gifList.add(new GifItem(R.drawable.ton_clap, "ton_clap"));
         }
@@ -508,7 +497,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     // AKHIR FITUR DYNAMIC SUPPORT
     // ============================================================
 
-    // === LOGIC UPDATE STAGE HEADER ===
+    // === ✅ LOGIC UPDATE STAGE HEADER (UPDATED: PAKAI AVATAR CUSTOM) ===
     private void updateStageHeader(IUser talkingUser) {
         if (mTvSpeakerName == null || mImgMainAvatar == null) return;
         boolean isTalking = talkingUser != null && isTalkingState(talkingUser.getTalkState());
@@ -516,8 +505,18 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         if (isTalking) {
             mTvSpeakerName.setText(talkingUser.getName());
             mTvSpeakerName.setVisibility(View.VISIBLE);
-            Drawable userAvatar = mSingleUserAdapter != null ? mSingleUserAdapter.getTalkStateDrawable(talkingUser) : null;
-            if (userAvatar != null) mImgMainAvatar.setImageDrawable(userAvatar);
+            
+            // ✅ COBA LOAD AVATAR CUSTOM DULU
+            Bitmap customAvatar = mSingleUserAdapter != null ? 
+                mSingleUserAdapter.getAvatarBitmapForUser(talkingUser) : null;
+            
+            if (customAvatar != null) {
+                mImgMainAvatar.setImageBitmap(customAvatar);
+            } else {
+                Drawable userAvatar = mSingleUserAdapter != null ? 
+                    mSingleUserAdapter.getTalkStateDrawable(talkingUser) : null;
+                if (userAvatar != null) mImgMainAvatar.setImageDrawable(userAvatar);
+            }
         } else {
             mTvSpeakerName.setText("");
             mTvSpeakerName.setVisibility(View.INVISIBLE);
@@ -628,6 +627,37 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } else {
             mTvChannelInfo.setText("");
             mTvChannelInfo.setVisibility(View.GONE);
+        }
+    }
+
+    // ============================================================
+    // ✅ METHOD BARU: DIPANGGIL SAAT AVATAR USER UPDATE
+    // ============================================================
+    public void onAvatarUpdated(int sessionId) {
+        Log.d(TAG, ">>> [EVENT] Avatar updated for session: " + sessionId);
+        
+        if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
+            refreshSingleChannelView();
+        }
+        
+        try {
+            if (getService() != null && getService().isConnected()) {
+                IHumlaSession session = getService().HumlaSession();
+                IChannel currentCh = session.getSessionChannel();
+                if (currentCh != null) {
+                    List<? extends IUser> users = currentCh.getUsers();
+                    if (users != null) {
+                        for (IUser u : users) {
+                            if (u.getSession() == sessionId && isTalkingState(u.getTalkState())) {
+                                updateStageHeader(u);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating stage header after avatar change", e);
         }
     }
 
