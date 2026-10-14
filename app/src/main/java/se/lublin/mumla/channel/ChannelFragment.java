@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Channel Info + Auto-Resend on Join
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Channel Info + Floating Support Animation
  */
 package se.lublin.mumla.channel;
 
@@ -42,6 +42,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.PagerTabStrip;
 import androidx.viewpager.widget.ViewPager;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -94,7 +95,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private TextView mTvChannelId, mTvChannelName, mTvSpeakerName, mTvChannelDesc;
     private ImageView mImgMainAvatar;
     private TextView mTvAnnouncementOverlay;
-    private TextView mTvChannelInfo; // ✅ VARIABEL BARU: PAPAN INFO REAL-TIME
+    private TextView mTvChannelInfo; 
+
+    // ✅ VARIABEL FLOATING SUPPORT ANIMATION
+    private ImageView mImgFloatingSupport;
+    private Runnable mHideSupportRunnable;
 
     // ✅ VARIABEL SMART ADMIN INPUT (LONG PRESS TRIGGER)
     private LinearLayout mAdminInputContainer;
@@ -271,8 +276,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mImgMainAvatar = mHeaderSingleCh.findViewById(R.id.img_main_avatar);
             mTvChannelDesc = mHeaderSingleCh.findViewById(R.id.tv_channel_desc);
             mTvAnnouncementOverlay = mHeaderSingleCh.findViewById(R.id.tv_announcement_overlay);
-            mTvChannelInfo = mHeaderSingleCh.findViewById(R.id.tv_channel_info); // ✅ INISIALISASI
+            mTvChannelInfo = mHeaderSingleCh.findViewById(R.id.tv_channel_info); 
             
+            // ✅ INISIALISASI FLOATING SUPPORT ANIMATION
+            mImgFloatingSupport = mHeaderSingleCh.findViewById(R.id.img_floating_support);
+
             // ✅ INISIALISASI TOMBOL EDIT INFO
             mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
             mBtnEditInfo.setOnClickListener(v -> showEditInfoDialog());
@@ -405,7 +413,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             
             updateStageHeader(null);
             loadCachedAnnouncement(currentChannel);
-            loadCachedChannelInfo(currentChannel); // ✅ LOAD CACHE INFO SAAT REFRESH
+            loadCachedChannelInfo(currentChannel); 
             
             // Sembunyikan kotak input saat refresh
             if (mAdminInputContainer != null) {
@@ -546,6 +554,46 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             updateChannelInfo(null);
         }
     }
+
+    // ============================================================
+    // ✅ FITUR BARU: FLOATING SUPPORT ANIMATION SYSTEM
+    // ============================================================
+
+    /**
+     * Memutar animasi dukungan melayang di tengah header.
+     * @param gifResId ID resource drawable GIF (misal: R.drawable.ton_clap)
+     */
+    public void playFloatingSupport(int gifResId) {
+        if (mImgFloatingSupport == null || !isAdded()) return;
+
+        // 1. Batalkan timer hide sebelumnya jika ada (Anti-Spam / Reset Duration)
+        if (mHideSupportRunnable != null) {
+            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
+        }
+
+        // 2. Load & Play GIF menggunakan Glide
+        Glide.with(this)
+             .asGif()
+             .load(gifResId)
+             .into(mImgFloatingSupport);
+
+        // 3. Tampilkan View
+        mImgFloatingSupport.setVisibility(View.VISIBLE);
+
+        // 4. Set Timer Auto-Hide setelah 3 Detik
+        mHideSupportRunnable = () -> {
+            if (mImgFloatingSupport != null) {
+                mImgFloatingSupport.setVisibility(View.GONE);
+                // Optional: Clear drawable untuk hemat memory
+                // mImgFloatingSupport.setImageDrawable(null); 
+            }
+        };
+        mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
+    }
+
+    // ============================================================
+    // AKHIR FITUR FLOATING SUPPORT
+    // ============================================================
 
     // === METODE BRIDGE ANNOUNCEMENT ===
     public void notifyAnnouncement(int channelId, String message, String senderName) {
@@ -739,15 +787,23 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
     @Override public void onDestroyView() {
         super.onDestroyView();
+        
+        // ✅ CLEANUP FLOATING SUPPORT ANIMATION
+        if (mImgFloatingSupport != null && mHideSupportRunnable != null) {
+            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
+            mHideSupportRunnable = null;
+        }
+
         if(mTalkButton!=null){mTalkButton.setActivated(false);mTalkButton.setPressed(false);}
         PreferenceManager.getDefaultSharedPreferences(getActivity()).unregisterOnSharedPreferenceChangeListener(this);
         mViewPager=null; mTabStrip=null; mTalkButton=null; mTalkView=null; mTargetPanel=null; mTargetPanelCancel=null; mTargetPanelText=null;
         mSingleChContainer=null; mRvUserList=null; mSingleUserAdapter=null; mHeaderSingleCh=null;
         mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
         mTvAnnouncementOverlay=null; 
-        mTvChannelInfo=null; // ✅ CLEANUP
+        mTvChannelInfo=null; 
+        mImgFloatingSupport=null; // ✅ CLEANUP
         mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null;
-        mBtnEditInfo=null; // ✅ CLEANUP
+        mBtnEditInfo=null; 
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
     }
 
