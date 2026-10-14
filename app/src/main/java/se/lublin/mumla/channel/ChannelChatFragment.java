@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Unified Parser + Floating Support Trigger
+ * By Jureni123 Modified for Mumla OLED - Unified Parser + Dynamic Support Trigger
  */
 package se.lublin.mumla.channel;
 
@@ -65,6 +65,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
@@ -101,7 +102,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
     // ✅ KONSTANTA PARSER UNIFIED
     private static final String ANNOUNCE_PREFIX = "!announce ";
     private static final String INFO_PREFIX = "::INFO::";
-    private static final String SUPPORT_PREFIX = "::SUPPORT::"; // ✅ BARU
+    private static final String SUPPORT_PREFIX = "::SUPPORT::"; 
 
     private IHumlaObserver mServiceObserver = new HumlaObserver() {
 
@@ -111,36 +112,37 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             if (body == null) return;
 
             // ============================================================
-            // 1. PARSER SUPPORT ANIMATION (::SUPPORT::...) - PRIORITAS TERTINGGI
+            // 1. PARSER SUPPORT ANIMATION DINAMIS (::SUPPORT::nama_file_gif)
+            // PRIORITAS TERTINGGI AGAR TIDAK MASUK NOTIFIKASI/CHAT HISTORY
             // ============================================================
             if (body.startsWith(SUPPORT_PREFIX)) {
                 try {
-                    String payload = body.substring(SUPPORT_PREFIX.length());
+                    String triggerName = body.substring(SUPPORT_PREFIX.length());
                     
-                    // Mapping sederhana untuk Fase 1 Testing
+                    // Cari Resource ID berdasarkan NAMA FILE GIF secara dinamis
                     int resId = 0;
-                    if ("clap".equals(payload)) {
+                    try {
+                        Field field = R.drawable.class.getField(triggerName);
+                        resId = field.getInt(null);
+                    } catch (Exception e) {
+                        Log.w(TAG, "GIF not found: " + triggerName);
+                        // Fallback ke ton_clap jika nama file tidak dikenali
                         resId = R.drawable.ton_clap; 
-                    } else if ("heart".equals(payload)) {
-                        // resId = R.drawable.ic_support_heart; // Uncomment kalau sudah ada filenya
-                    } else if ("CUSTOM".equals(payload)) {
-                        // Placeholder untuk fitur user upload nanti
-                        resId = R.drawable.ton_clap; // Fallback sementara
                     }
-
+                    
                     // Panggil method di parent fragment HANYA jika resource ditemukan
                     if (resId != 0) {
                         Fragment parent = getParentFragment();
                         if (parent instanceof ChannelFragment) {
                             ((ChannelFragment) parent).playFloatingSupport(resId);
-                            Log.d(TAG, "✅ Support animation triggered: " + payload);
+                            Log.d(TAG, "✅ Dynamic support triggered: " + triggerName);
                         }
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error parsing support", e);
+                    Log.e(TAG, "Error parsing dynamic support", e);
                 }
                 
-                // ⚠️ KRUSIAL: RETURN DI SINI AGAR TIDAK MUNCUL DI CHAT HISTORY
+                // ⚠️ KRUSIAL: RETURN DI SINI AGAR TIDAK MUNCUL DI CHAT HISTORY & NOTIFIKASI
                 return; 
             }
 
