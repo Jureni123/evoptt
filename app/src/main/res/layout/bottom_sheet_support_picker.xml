@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Pilih Animasi Support"
+        android:text="Klik/Pilih Animasi"
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="#0D47A1"
@@ -71,7 +71,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Upload GIF Sendiri (Segera Hadir)"
+        android:text="Semua Penguna Menerima Colekan Anda"
         android:textSize="12sp"
         android:textColor="#90CAF9"
         android:gravity="center"
