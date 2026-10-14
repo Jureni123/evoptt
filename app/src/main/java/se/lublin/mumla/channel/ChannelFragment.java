@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Hybrid Channel Info + Floating Support Animation
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Safe Support GIF Picker
  */
 package se.lublin.mumla.channel;
 
@@ -48,9 +48,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONObject;
 
-import java.io.File; // ✅ WAJIB ADA UNTUK METHOD PATH
+import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import se.lublin.humla.HumlaService;
 import se.lublin.humla.IHumlaService;
@@ -107,7 +109,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     private EditText mEtAdminAnnounce;
     private ImageButton mBtnSendAnnounce;
     
-    // ✅ VARIABEL TOMBOL EDIT INFO (POJOK KANAN ATAS)
+    // ✅ VARIABEL TOMBOL EDIT INFO / SUPPORT PICKER (POJOK KANAN ATAS)
     private ImageButton mBtnEditInfo;
 
     private ChatTarget mChatTarget;
@@ -126,36 +128,23 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
-        // ✅ LOGIC AUTO-RESEND INFO UNTUK USER BARU
         @Override
         public void onUserJoinedChannel(IUser user, IChannel newChannel, IChannel oldChannel) {
             Log.d(TAG, ">>> [EVENT] User Joined: " + user.getName());
-            
             try {
                 IHumlaSession session = getService().HumlaSession();
-                
-                // Pastikan user yang join BUKAN diri sendiri & server terhubung
                 if (user.getSession() != session.getSessionId() && getService().isConnected()) {
-                    
-                    // Ambil info terakhir dari cache lokal admin
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                     String cachedJson = prefs.getString("channel_info_ch_" + newChannel.getId(), null);
-                    
-                    // Jika ada info tersimpan, kirim ulang via protokol chat
                     if (cachedJson != null && !cachedJson.isEmpty()) {
-                        // Format pesan harus sesuai parser (::INFO:: + JSON)
                         String messageToSend = INFO_PREFIX + cachedJson;
-                        
                         session.sendChannelTextMessage(newChannel.getId(), messageToSend, false);
-                        
                         Log.d(TAG, "Auto-resend info triggered for: " + user.getName());
                     }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error auto-resending info", e);
             }
-
-            // Refresh view seperti biasa agar list user update
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) {
                 refreshSingleChannelView();
             }
@@ -175,14 +164,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
         @Override
         public void onUserStateUpdated(IUser user) {
-            // Logic Existing (Talk State, Configure Input)
             if (getService() != null && getService().isConnected()) {
                 try {
                     int selfSession = getService().HumlaSession().getSessionId();
                     if (user != null && user.getSession() == selfSession) configureInput();
                 } catch (Exception e) {}
             }
-            
             if (mSingleChContainer != null && mSingleChContainer.getVisibility() == View.VISIBLE) refreshSingleChannelView();
         }
 
@@ -282,65 +269,62 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             // ✅ INISIALISASI FLOATING SUPPORT ANIMATION
             mImgFloatingSupport = mHeaderSingleCh.findViewById(R.id.img_floating_support);
 
-            // ✅ SETUP TOMBOL TEST PATH GIF (SEMENTARA UNTUK FASE 1)
+            // ✅ TOMBOL TEST SEMENTARA (VALIDASI RENDERER)
             ImageButton btnTestPathGif = mHeaderSingleCh.findViewById(R.id.btn_test_path_gif);
             if (btnTestPathGif != null) {
                 btnTestPathGif.setOnClickListener(v -> {
-                    // Test langsung pakai resource ID dulu untuk validasi renderer
                     playFloatingSupport(R.drawable.ton_clap);
                     Toast.makeText(requireContext(), "Renderer Tested!", Toast.LENGTH_SHORT).show();
                 });
             }
 
-            // ✅ INISIALISASI TOMBOL EDIT INFO
+            // ✅ TOMBOL ADMIN JADI PEMBUKA SAFE SUPPORT PICKER
             mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
-            mBtnEditInfo.setOnClickListener(v -> showEditInfoDialog());
+            mBtnEditInfo.setOnClickListener(v -> {
+                // Cek cooldown global
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                long lastClickTime = prefs.getLong("last_support_click", 0);
+                if (System.currentTimeMillis() - lastClickTime < 3000) {
+                    Toast.makeText(requireContext(), "Tunggu sebentar...", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                showSafeSupportPicker();
+            });
 
-            // ✅ INISIALISASI SMART ADMIN INPUT
+            // ✅ SMART ADMIN INPUT (LONG PRESS HEADER)
             mAdminInputContainer = mHeaderSingleCh.findViewById(R.id.admin_input_container);
             mEtAdminAnnounce = mHeaderSingleCh.findViewById(R.id.et_admin_announce);
             mBtnSendAnnounce = mHeaderSingleCh.findViewById(R.id.btn_send_announce);
 
-            // ✅ LONG PRESS LISTENER: MUNCULKAN INPUT HANYA SAAT DITAHAN
             mHeaderSingleCh.setOnLongClickListener(v -> {
                 try {
                     IHumlaSession session = getService().HumlaSession();
                     int perms = session.getPermissions();
                     final int ADMIN_FLAGS = Permissions.Kick | Permissions.Ban | Permissions.Register;
-                    
                     if ((perms & ADMIN_FLAGS) != 0) {
                         mAdminInputContainer.setVisibility(View.VISIBLE);
                         mEtAdminAnnounce.requestFocus();
-                        
                         InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-                        if (imm != null) {
-                            imm.showSoftInput(mEtAdminAnnounce, InputMethodManager.SHOW_IMPLICIT);
-                        }
+                        if (imm != null) imm.showSoftInput(mEtAdminAnnounce, InputMethodManager.SHOW_IMPLICIT);
                         return true;
                     }
                 } catch (Exception e) { Log.e(TAG, "Long press check failed", e); }
-                
                 return false;
             });
 
-            // ✅ HANDLE KIRIM PENGUMUMAN HYBRID SYSTEM
             mBtnSendAnnounce.setOnClickListener(v -> {
                 String text = mEtAdminAnnounce.getText().toString().trim();
                 if (!text.isEmpty() && getService() != null && getService().isConnected()) {
                     try {
                         IHumlaSession session = getService().HumlaSession();
                         IChannel currentCh = session.getSessionChannel();
-                        
                         if (currentCh != null) {
                             session.sendChannelTextMessage(currentCh.getId(), "!announce " + text, false);
                             notifyAnnouncement(currentCh.getId(), text, "Admin");
-                            
                             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                             prefs.edit().putString("announcement_ch_" + currentCh.getId(), text).apply();
-                            
                             mEtAdminAnnounce.setText("");
                             Toast.makeText(requireContext(), "Pengumuman disebar!", Toast.LENGTH_SHORT).show();
-                            
                             mAdminInputContainer.setVisibility(View.GONE);
                             InputMethodManager imm = (InputMethodManager) requireContext().getSystemService(Context.INPUT_METHOD_SERVICE);
                             if (imm != null && mEtAdminAnnounce.getWindowToken() != null) {
@@ -385,6 +369,91 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         return view;
     }
 
+    // ============================================================
+    // ✅ FITUR BARU: SAFE SUPPORT GIF PICKER (ANTI-VANDAL)
+    // ============================================================
+
+    /**
+     * Menampilkan picker GIF yang AMAN & TERKURASI.
+     * User hanya bisa KLIK, tidak bisa MENGETIK.
+     */
+    private void showSafeSupportPicker() {
+        BottomSheetDialog picker = new BottomSheetDialog(requireContext());
+        View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_support_picker, null);
+        picker.setContentView(sheetView);
+
+        // WHITELIST TRIGGER: Hanya kode ini yang boleh dikirim
+        Map<ImageButton, String> safeTriggers = new HashMap<>();
+        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_clap), "clap");
+        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_heart), "heart");
+        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_fire), "fire");
+        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_laugh), "laugh");
+
+        for (Map.Entry<ImageButton, String> entry : safeTriggers.entrySet()) {
+            ImageButton btn = entry.getKey();
+            final String triggerCode = entry.getValue();
+            
+            if (btn != null) {
+                btn.setOnClickListener(clickView -> {
+                    // A. TAMPILKAN GIF DI HP SENDIRI INSTAN
+                    int resId = getSafeResId(triggerCode);
+                    if (resId != 0) playFloatingSupport(resId);
+
+                    // B. KIRIM TRIGGER AMAN KE SERVER
+                    try {
+                        if (getService() != null && getService().isConnected()) {
+                            IHumlaSession session = getService().HumlaSession();
+                            IChannel currentCh = session.getSessionChannel();
+                            
+                            if (currentCh != null) {
+                                session.sendChannelTextMessage(
+                                    currentCh.getId(), 
+                                    "::SUPPORT::" + triggerCode, 
+                                    false
+                                );
+                                
+                                // Update cooldown
+                                PreferenceManager.getDefaultSharedPreferences(requireContext())
+                                    .edit()
+                                    .putLong("last_support_click", System.currentTimeMillis())
+                                    .apply();
+                                    
+                                Toast.makeText(requireContext(), 
+                                    "Support " + triggerCode + " dikirim!", 
+                                    Toast.LENGTH_SHORT
+                                ).show();
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Gagal kirim support aman", e);
+                    }
+
+                    picker.dismiss();
+                });
+            }
+        }
+
+        picker.show();
+    }
+
+    /**
+     * Mapping AMAN: Hanya return ID untuk trigger yang terdaftar.
+     * Default fallback ke ton_clap jika trigger tidak dikenal.
+     */
+    private int getSafeResId(String trigger) {
+        switch (trigger) {
+            case "clap": return R.drawable.ton_clap;
+            case "heart": return R.drawable.ic_heart_placeholder; 
+            case "fire": return R.drawable.ic_fire_placeholder;   
+            case "laugh": return R.drawable.ic_laugh_placeholder; 
+            default: return R.drawable.ton_clap;
+        }
+    }
+
+    // ============================================================
+    // AKHIR FITUR SAFE SUPPORT
+    // ============================================================
+
     // === LOGIC UPDATE STAGE HEADER ===
     private void updateStageHeader(IUser talkingUser) {
         if (mTvSpeakerName == null || mImgMainAvatar == null) return;
@@ -426,12 +495,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             loadCachedAnnouncement(currentChannel);
             loadCachedChannelInfo(currentChannel); 
             
-            // Sembunyikan kotak input saat refresh
             if (mAdminInputContainer != null) {
                 mAdminInputContainer.setVisibility(View.GONE);
             }
             
-            // ✅ VALIDASI OTORITAS UNTUK TOMBOL EDIT
             updateAdminControls(currentChannel);
 
             List<? extends IUser> rawUsers = currentChannel.getUsers();
@@ -442,17 +509,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } catch (Exception e) { Log.e(TAG, "Err refresh", e); }
     }
 
-    // ✅ METHOD BARU: VALIDASI & TAMPILKAN TOMBOL EDIT
     private void updateAdminControls(IChannel channel) {
         if (mBtnEditInfo == null || channel == null) return;
-        
         try {
             IHumlaSession session = getService().HumlaSession();
             int perms = session.getPermissions();
-            
-            // Definisi Otoritas: Write, Kick, Ban, Register
             final int ADMIN_FLAGS = Permissions.Write | Permissions.Kick | Permissions.Ban | Permissions.Register;
-            
             if ((perms & ADMIN_FLAGS) != 0) {
                 mBtnEditInfo.setVisibility(View.VISIBLE);
             } else {
@@ -462,187 +524,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mBtnEditInfo.setVisibility(View.GONE); 
         }
     }
-
-    // ✅ METHOD BARU: DIALOG EDIT INFO CHANNEL
-    private void showEditInfoDialog() {
-        if (getService() == null || !getService().isConnected()) return;
-        
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext());
-        builder.setTitle("Edit Informasi Channel");
-        
-        final EditText input = new EditText(requireContext());
-        input.setHint("Masukkan info channel...");
-        input.setPadding(40, 30, 40, 30);
-        
-        // Load teks terakhir jika ada
-        try {
-            IChannel ch = getService().HumlaSession().getSessionChannel();
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-            String cached = prefs.getString("channel_info_ch_" + ch.getId(), null);
-            if (cached != null) {
-                JSONObject meta = new JSONObject(cached);
-                input.setText(meta.optString("content", ""));
-            }
-        } catch (Exception e) {}
-        
-        builder.setView(input);
-        
-        builder.setPositiveButton("Simpan", (d, w) -> {
-            String text = input.getText().toString().trim();
-            if (!text.isEmpty()) sendChannelInfo(text);
-        });
-        
-        builder.setNegativeButton("Batal", null);
-        builder.show();
-    }
-
-    // ✅ METHOD BARU: KIRIM INFO VIA CHAT HYBRID (CLEAN VERSION)
-    private void sendChannelInfo(String text) {
-        try {
-            IHumlaSession session = getService().HumlaSession();
-            IChannel currentCh = session.getSessionChannel();
-            if (currentCh == null) return;
-            
-            // 1. SANITIZE & BATASI PANJANG
-            String safeText = text.trim().replaceAll("[\\n\\r]", " ");
-            if (safeText.length() > MAX_INFO_LENGTH) {
-                Toast.makeText(requireContext(), "Info terlalu panjang! Maks " + MAX_INFO_LENGTH + " karakter.", Toast.LENGTH_LONG).show();
-                return;
-            }
-            
-            // 2. KIRIM VIA PROTOKOL CHAT DENGAN PREFIX KHUSUS
-            // Format: ::INFO::{"c":"teks","id":5}
-            JSONObject payload = new JSONObject();
-            payload.put("c", safeText);
-            payload.put("id", currentCh.getId());
-            
-            String messageToSend = INFO_PREFIX + payload.toString();
-            session.sendChannelTextMessage(currentCh.getId(), messageToSend, false);
-            
-            // 3. UPDATE UI LANGSUNG (OPTIMISTIC)
-            updateChannelInfo(safeText);
-            
-            // 4. SIMPAN CACHE
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-            prefs.edit().putString("channel_info_ch_" + currentCh.getId(), payload.toString()).apply();
-            
-            Toast.makeText(requireContext(), "Info channel diperbarui!", Toast.LENGTH_SHORT).show();
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Send channel info failed", e);
-            Toast.makeText(requireContext(), "Gagal: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    // ✅ METHOD BARU: UPDATE UI CHANNEL INFO
-    public void updateChannelInfo(String text) {
-        if (mTvChannelInfo == null) return;
-        
-        if (text != null && !text.trim().isEmpty()) {
-            mTvChannelInfo.setText(text);
-            mTvChannelInfo.setVisibility(View.VISIBLE);
-        } else {
-            mTvChannelInfo.setText("");
-            mTvChannelInfo.setVisibility(View.GONE);
-        }
-    }
-
-    // ✅ METHOD BARU: LOAD CACHE CHANNEL INFO
-    public void loadCachedChannelInfo(IChannel channel) {
-        if (channel == null || mTvChannelInfo == null) return;
-        
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-        String cached = prefs.getString("channel_info_ch_" + channel.getId(), null);
-        
-        if (cached != null && !cached.isEmpty()) {
-            try {
-                JSONObject meta = new JSONObject(cached);
-                updateChannelInfo(meta.optString("content", ""));
-            } catch (Exception e) {
-                // Jika JSON rusak, abaikan
-            }
-        } else {
-            updateChannelInfo(null);
-        }
-    }
-
-    // ============================================================
-    // ✅ FITUR BARU: FLOATING SUPPORT ANIMATION SYSTEM
-    // ============================================================
-
-    /**
-     * Memutar animasi dukungan melayang di tengah header (Resource ID).
-     * @param gifResId ID resource drawable GIF (misal: R.drawable.ton_clap)
-     */
-    public void playFloatingSupport(int gifResId) {
-        if (mImgFloatingSupport == null || !isAdded()) return;
-
-        // 1. Batalkan timer hide sebelumnya jika ada (Anti-Spam / Reset Duration)
-        if (mHideSupportRunnable != null) {
-            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
-        }
-
-        // 2. Load & Play GIF menggunakan Glide
-        Glide.with(this)
-             .asGif()
-             .load(gifResId)
-             .into(mImgFloatingSupport);
-
-        // 3. Tampilkan View
-        mImgFloatingSupport.setVisibility(View.VISIBLE);
-
-        // 4. Set Timer Auto-Hide setelah 3 Detik
-        mHideSupportRunnable = () -> {
-            if (mImgFloatingSupport != null) {
-                mImgFloatingSupport.setVisibility(View.GONE);
-            }
-        };
-        mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
-    }
-
-    /**
-     * Memutar animasi support dari FILE PATH (bukan resource ID).
-     * Untuk testing pipeline load GIF dari storage lokal atau upload user.
-     * @param gifPath Path absolut ke file GIF di internal storage
-     */
-    public void playFloatingSupportFromPath(String gifPath) {
-        if (mImgFloatingSupport == null || !isAdded()) return;
-
-        File gifFile = new File(gifPath);
-        if (!gifFile.exists()) {
-            Log.e(TAG, "GIF file not found: " + gifPath);
-            // Fallback ke default jika file hilang
-            playFloatingSupport(R.drawable.ton_clap);
-            return;
-        }
-
-        // Cancel timer lama
-        if (mHideSupportRunnable != null) {
-            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
-        }
-
-        // Load GIF dari file path menggunakan Glide
-        Glide.with(this)
-             .asGif()
-             .load(gifFile)
-             .placeholder(R.drawable.ton_clap)
-             .error(R.drawable.ton_clap)
-             .into(mImgFloatingSupport);
-
-        mImgFloatingSupport.setVisibility(View.VISIBLE);
-
-        // Auto-hide setelah 3 detik
-        mHideSupportRunnable = () -> {
-            if (mImgFloatingSupport != null) {
-                mImgFloatingSupport.setVisibility(View.GONE);
-            }
-        };
-        mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
-    }
-
-    // ============================================================
-    // AKHIR FITUR FLOATING SUPPORT
-    // ============================================================
 
     // === METODE BRIDGE ANNOUNCEMENT ===
     public void notifyAnnouncement(int channelId, String message, String senderName) {
@@ -657,13 +538,11 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         } catch (Exception e) { Log.e(TAG, "Notify announcement failed", e); }
     }
 
-    // === LOAD CACHE ANNOUNCEMENT (PUBLIK - TANPA CEK PERMISSION) ===
+    // === LOAD CACHE ANNOUNCEMENT ===
     private void loadCachedAnnouncement(IChannel channel) {
         if (channel == null || mTvAnnouncementOverlay == null) return;
-        
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         String cached = prefs.getString("announcement_ch_" + channel.getId(), null);
-        
         if (cached != null && !cached.isEmpty()) {
             mTvAnnouncementOverlay.setText(cached);
             mTvAnnouncementOverlay.setVisibility(View.VISIBLE);
@@ -671,6 +550,72 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             mTvAnnouncementOverlay.setVisibility(View.GONE);
         }
     }
+
+    // === LOAD CACHE CHANNEL INFO ===
+    public void loadCachedChannelInfo(IChannel channel) {
+        if (channel == null || mTvChannelInfo == null) return;
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        String cached = prefs.getString("channel_info_ch_" + channel.getId(), null);
+        if (cached != null && !cached.isEmpty()) {
+            try {
+                JSONObject meta = new JSONObject(cached);
+                updateChannelInfo(meta.optString("content", ""));
+            } catch (Exception e) {}
+        } else {
+            updateChannelInfo(null);
+        }
+    }
+
+    public void updateChannelInfo(String text) {
+        if (mTvChannelInfo == null) return;
+        if (text != null && !text.trim().isEmpty()) {
+            mTvChannelInfo.setText(text);
+            mTvChannelInfo.setVisibility(View.VISIBLE);
+        } else {
+            mTvChannelInfo.setText("");
+            mTvChannelInfo.setVisibility(View.GONE);
+        }
+    }
+
+    // ============================================================
+    // ✅ FITUR BARU: FLOATING SUPPORT ANIMATION SYSTEM
+    // ============================================================
+
+    public void playFloatingSupport(int gifResId) {
+        if (mImgFloatingSupport == null || !isAdded()) return;
+        if (mHideSupportRunnable != null) {
+            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
+        }
+        Glide.with(this).asGif().load(gifResId).into(mImgFloatingSupport);
+        mImgFloatingSupport.setVisibility(View.VISIBLE);
+        mHideSupportRunnable = () -> {
+            if (mImgFloatingSupport != null) mImgFloatingSupport.setVisibility(View.GONE);
+        };
+        mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
+    }
+
+    public void playFloatingSupportFromPath(String gifPath) {
+        if (mImgFloatingSupport == null || !isAdded()) return;
+        File gifFile = new File(gifPath);
+        if (!gifFile.exists()) {
+            Log.e(TAG, "GIF file not found: " + gifPath);
+            playFloatingSupport(R.drawable.ton_clap);
+            return;
+        }
+        if (mHideSupportRunnable != null) {
+            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
+        }
+        Glide.with(this).asGif().load(gifFile).placeholder(R.drawable.ton_clap).error(R.drawable.ton_clap).into(mImgFloatingSupport);
+        mImgFloatingSupport.setVisibility(View.VISIBLE);
+        mHideSupportRunnable = () -> {
+            if (mImgFloatingSupport != null) mImgFloatingSupport.setVisibility(View.GONE);
+        };
+        mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
+    }
+
+    // ============================================================
+    // AKHIR FITUR FLOATING SUPPORT
+    // ============================================================
 
     // === METODE LIST CHANNEL DIALOG ===
     private void showChannelListDialog() {
@@ -681,11 +626,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             IHumlaSession session = getService().HumlaSession();
             IChannel root = session.getRootChannel();
             if (root == null) return;
-
             List<IChannel> allChannels = new ArrayList<>();
             collectAllChannels(root, allChannels);
             if (allChannels.isEmpty()) return;
-
             String[] names = new String[allChannels.size()];
             int[] ids = new int[allChannels.size()];
             for (int i=0; i<allChannels.size(); i++) {
@@ -694,7 +637,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 names[i] = ch.getName() + " (" + cnt + ")";
                 ids[i] = ch.getId();
             }
-
             new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Pilih Channel")
                 .setItems(names, (d, w) -> {
@@ -718,14 +660,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         BottomSheetDialog bs = new BottomSheetDialog(requireContext());
         View sv = getLayoutInflater().inflate(R.layout.bottom_sheet_audio, null);
         bs.setContentView(sv);
-
         SwitchCompat swMute = sv.findViewById(R.id.switch_mute);
         SwitchCompat swDeafen = sv.findViewById(R.id.switch_deafen);
         try {
             IUser self = getService().HumlaSession().getSessionUser();
             if (self != null) { swMute.setChecked(self.isSelfMuted()||self.isMuted()); swDeafen.setChecked(self.isDeafened()); }
         } catch (Exception e) {}
-
         swMute.setOnCheckedChangeListener((b, c) -> {
             try { 
                 boolean d=false; IUser s=getService().HumlaSession().getSessionUser(); if(s!=null)d=s.isDeafened();
@@ -738,11 +678,9 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 getService().HumlaSession().setSelfMuteDeafState(m, c);
             } catch(Exception e){}
         });
-
         RadioGroup rg = sv.findViewById(R.id.radio_input_mode);
         Settings st = Settings.getInstance(requireContext());
         String cur = st.getInputMethod(); boolean stk = st.isPushToTalkToggle(); boolean bt = st.isBluetoothHeadset();
-        
         if(cur.equals(Settings.ARRAY_INPUT_METHOD_VOICE)) sv.findViewById(R.id.radio_vox).performClick();
         else if(cur.equals(Settings.ARRAY_INPUT_METHOD_CONTINUOUS)) sv.findViewById(R.id.radio_continuous).performClick();
         else if(cur.equals(Settings.ARRAY_INPUT_METHOD_PTT)) {
@@ -750,9 +688,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             else if(stk) sv.findViewById(R.id.radio_ptt_sticky).performClick();
             else sv.findViewById(R.id.radio_ptt).performClick();
         }
-
         java.util.function.Consumer<Boolean> saveTgl = (v) -> android.preference.PreferenceManager.getDefaultSharedPreferences(requireContext()).edit().putBoolean("togglePtt", v).apply();
-
         rg.setOnCheckedChangeListener((g, id) -> {
             if(id==R.id.radio_vox) st.setInputMethod(Settings.ARRAY_INPUT_METHOD_VOICE);
             else if(id==R.id.radio_continuous) st.setInputMethod(Settings.ARRAY_INPUT_METHOD_CONTINUOUS);
@@ -771,14 +707,12 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         BottomSheetDialog bs = new BottomSheetDialog(requireContext());
         View sv = getLayoutInflater().inflate(R.layout.bottom_sheet_session_menu, null);
         bs.setContentView(sv);
-
         sv.findViewById(R.id.btn_toggle_overlay).setOnClickListener(v -> {
             if(getService() instanceof MumlaService) {
                 MumlaService ms=(MumlaService)getService(); ms.onOverlayToggled();
                 Toast.makeText(requireContext(), ms.isOverlayShown()?"Overlay ON":"Overlay OFF", Toast.LENGTH_SHORT).show();
             } bs.dismiss();
         });
-
         sv.findViewById(R.id.btn_refresh_channel).setOnClickListener(v -> {
             if(getService() instanceof HumlaService && ((HumlaService)getService()).isConnected()) {
                 try {
@@ -796,7 +730,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             }
             bs.dismiss();
         });
-
         sv.findViewById(R.id.btn_disconnect).setOnClickListener(v -> {
             new MaterialAlertDialogBuilder(requireContext()).setTitle("Disconnect?").setPositiveButton("Ya",(d,w)->{
                 if(getService() instanceof MumlaService) ((MumlaService)getService()).onDisconnect();
@@ -806,12 +739,10 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         bs.show();
     }
 
-    // ✅ FIX KRUSIAL: PAKSA VIEWPAGER AKTIF & MATIKAN ANIMASI GESER
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         PreferenceManager.getDefaultSharedPreferences(getActivity()).registerOnSharedPreferenceChangeListener(this);
-        
         if (mViewPager != null) {
             mViewPager.setAdapter(new ChannelFragmentPagerAdapter(getChildFragmentManager()));
             mViewPager.setPageTransformer(false, null); 
@@ -836,21 +767,16 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
 
     @Override public void onDestroyView() {
         super.onDestroyView();
-        
-        // ✅ CLEANUP FLOATING SUPPORT ANIMATION
         if (mImgFloatingSupport != null && mHideSupportRunnable != null) {
             mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
             mHideSupportRunnable = null;
         }
-
         if(mTalkButton!=null){mTalkButton.setActivated(false);mTalkButton.setPressed(false);}
         PreferenceManager.getDefaultSharedPreferences(getActivity()).unregisterOnSharedPreferenceChangeListener(this);
         mViewPager=null; mTabStrip=null; mTalkButton=null; mTalkView=null; mTargetPanel=null; mTargetPanelCancel=null; mTargetPanelText=null;
         mSingleChContainer=null; mRvUserList=null; mSingleUserAdapter=null; mHeaderSingleCh=null;
         mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
-        mTvAnnouncementOverlay=null; 
-        mTvChannelInfo=null; 
-        mImgFloatingSupport=null; // ✅ CLEANUP
+        mTvAnnouncementOverlay=null; mTvChannelInfo=null; mImgFloatingSupport=null;
         mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null;
         mBtnEditInfo=null; 
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
