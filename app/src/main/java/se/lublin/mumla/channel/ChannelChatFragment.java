@@ -1,634 +1,263 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Unified Parser + Dynamic Support Trigger
+ * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting + Dynamic Avatar Per-User
  */
 package se.lublin.mumla.channel;
 
-import static android.Manifest.permission.READ_EXTERNAL_STORAGE;
-import static android.content.pm.PackageManager.PERMISSION_GRANTED;
-import static android.os.Build.VERSION.SDK_INT;
-import static android.view.KeyEvent.KEYCODE_ENTER;
-import static android.view.inputmethod.EditorInfo.IME_NULL;
-import static androidx.core.content.ContextCompat.checkSelfPermission;
-
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
-import android.graphics.PorterDuff;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
-import android.text.Editable;
-import android.text.Html;
-import android.text.Spannable;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.TextWatcher;
-import android.text.method.LinkMovementMethod;
-import android.text.style.ClickableSpan;
-import android.text.style.URLSpan;
-import android.util.Base64;
-import android.util.Log;
-import android.view.Gravity;
+import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
-import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
-import androidx.activity.result.contract.ActivityResultContracts.GetContent;
-import androidx.activity.result.contract.ActivityResultContracts.RequestPermission;
-import androidx.core.text.HtmlCompat;
-import androidx.exifinterface.media.ExifInterface;
-import androidx.fragment.app.Fragment;
-
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Field;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import se.lublin.humla.IHumlaService;
-import se.lublin.humla.IHumlaSession;
-import se.lublin.humla.model.IChannel;
-import se.lublin.humla.model.IMessage;
-import se.lublin.humla.model.IUser;
-import se.lublin.humla.model.User;
-import se.lublin.humla.util.HumlaDisconnectedException;
-import se.lublin.humla.util.HumlaObserver;
-import se.lublin.humla.util.IHumlaObserver;
-import se.lublin.mumla.R;
-import se.lublin.mumla.service.IChatMessage;
-import se.lublin.mumla.util.BitmapUtils;
-import se.lublin.mumla.util.ChatLinkPolicy;
-import se.lublin.mumla.util.HumlaServiceFragment;
-import se.lublin.mumla.util.MumbleImageGetter;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-public class ChannelChatFragment extends HumlaServiceFragment implements ChatTargetProvider.OnChatTargetSelectedListener {
-    private static final String TAG = ChannelChatFragment.class.getName();
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+import com.bumptech.glide.request.RequestOptions;
 
-    private static final Pattern LINK_PATTERN = Pattern.compile("(https?://\\S+)");
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import se.lublin.humla.model.IChannel;
+import se.lublin.humla.model.IUser;
+import se.lublin.humla.model.TalkState;
+import se.lublin.mumla.R;
+import se.lublin.mumla.app.MumlaActivity;
+import se.lublin.mumla.drawable.CircleDrawable;
+
+public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannelUserAdapter.ViewHolder> {
+
+    private final Context mContext;
+    private final List<IUser> mUsers = new ArrayList<>();
+    private OnUserClickListener mListener;
     
-    // ✅ KONSTANTA PARSER UNIFIED
-    private static final String ANNOUNCE_PREFIX = "!announce ";
-    private static final String INFO_PREFIX = "::INFO::";
-    private static final String SUPPORT_PREFIX = "::SUPPORT::"; 
+    // Simpan channel saat ini untuk cek badge parent
+    private IChannel mCurrentChannel;
+    
+    // ✅ KONSTANTA STORAGE PER-USER
+    private static final String PREF_AVATAR_PREFIX = "avatar_session_";
 
-    private IHumlaObserver mServiceObserver = new HumlaObserver() {
+    public interface OnUserClickListener {
+        void onUserClick(IUser user);
+        void onMoreClick(IUser user, View anchorView);
+    }
 
-        @Override
-        public void onMessageLogged(IMessage message) {
-            String body = message.getMessage();
-            if (body == null) return;
+    public static class ViewHolder extends RecyclerView.ViewHolder {
+        ImageView imgAvatarState;
+        TextView tvUsername;
+        TextView tvChannelBadge; 
+        TextView tvLocationComment;
+        ImageView imgMoreOptions;
 
-            // ============================================================
-            // 1. PARSER SUPPORT ANIMATION DINAMIS (::SUPPORT::nama_file_gif)
-            // PRIORITAS TERTINGGI AGAR TIDAK MASUK NOTIFIKASI/CHAT HISTORY
-            // ============================================================
-            if (body.startsWith(SUPPORT_PREFIX)) {
-                try {
-                    String triggerName = body.substring(SUPPORT_PREFIX.length());
-                    
-                    // Cari Resource ID berdasarkan NAMA FILE GIF secara dinamis
-                    int resId = 0;
-                    try {
-                        Field field = R.drawable.class.getField(triggerName);
-                        resId = field.getInt(null);
-                    } catch (Exception e) {
-                        Log.w(TAG, "GIF not found: " + triggerName);
-                        // Fallback ke ton_clap jika nama file tidak dikenali
-                        resId = R.drawable.ton_clap; 
-                    }
-                    
-                    // Panggil method di parent fragment HANYA jika resource ditemukan
-                    if (resId != 0) {
-                        Fragment parent = getParentFragment();
-                        if (parent instanceof ChannelFragment) {
-                            ((ChannelFragment) parent).playFloatingSupport(resId);
-                            Log.d(TAG, "✅ Dynamic support triggered: " + triggerName);
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error parsing dynamic support", e);
-                }
-                
-                // ⚠️ KRUSIAL: RETURN DI SINI AGAR TIDAK MUNCUL DI CHAT HISTORY & NOTIFIKASI
-                return; 
-            }
-
-            // ============================================================
-            // 2. PARSER CHANNEL INFO (::INFO::{...})
-            // ============================================================
-            if (body.startsWith(INFO_PREFIX)) {
-                try {
-                    String jsonPart = body.substring(INFO_PREFIX.length());
-                    JSONObject meta = new JSONObject(jsonPart);
-                    
-                    int targetChId = meta.optInt("id", -1);
-                    IChannel currentCh = getService().HumlaSession().getSessionChannel();
-                    
-                    if (currentCh != null && currentCh.getId() == targetChId) {
-                        String content = meta.optString("c", "");
-                        
-                        // Bridge ke Parent Fragment untuk update UI Header
-                        Fragment parent = getParentFragment();
-                        if (parent instanceof ChannelFragment) {
-                            ((ChannelFragment) parent).updateChannelInfo(content);
-                        }
-                        
-                        // Simpan cache lokal untuk persistensi
-                        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-                        prefs.edit().putString("channel_info_ch_" + targetChId, jsonPart).apply();
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "Invalid info JSON", e);
-                }
-                
-                // EARLY RETURN: Jangan tampilkan di chat history
-                return; 
-            }
-
-            // ============================================================
-            // 3. PARSER ANNOUNCEMENT (!announce ...)
-            // ============================================================
-            if (body.startsWith(ANNOUNCE_PREFIX)) {
-                String announcementText = body.substring(ANNOUNCE_PREFIX.length()).trim();
-                
-                int channelId = -1;
-                try {
-                    channelId = getService().HumlaSession().getSessionChannel().getId();
-                } catch (Exception e) { 
-                    Log.w(TAG, "Gagal mengambil channel ID, skip announcement");
-                    return; 
-                }
-
-                if (channelId != -1) {
-                    Fragment parent = getParentFragment();
-                    if (parent instanceof ChannelFragment) {
-                        ((ChannelFragment) parent).notifyAnnouncement(channelId, announcementText, message.getActorName());
-                    }
-                    
-                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-                    prefs.edit().putString("announcement_ch_" + channelId, announcementText).apply();
-                }
-                
-                // EARLY RETURN: Jangan tampilkan di chat history
-                return; 
-            }
-            
-            // ============================================================
-            // 4. CHAT NORMAL (Fallback jika bukan prefix khusus)
-            // ============================================================
-            addChatMessage(new IChatMessage.TextMessage(message), true);
+        public ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            imgAvatarState = itemView.findViewById(R.id.img_avatar_state);
+            tvUsername = itemView.findViewById(R.id.tv_username);
+            tvChannelBadge = itemView.findViewById(R.id.tv_channel_badge);
+            tvLocationComment = itemView.findViewById(R.id.tv_location_comment);
+            imgMoreOptions = itemView.findViewById(R.id.img_more_options);
         }
+    }
 
-        @Override
-        public void onLogInfo(String message) {
-            addChatMessage(new IChatMessage.InfoMessage(IChatMessage.InfoMessage.Type.INFO, message), true);
-        }
+    public SingleChannelUserAdapter(Context context) {
+        mContext = context;
+    }
 
-        @Override
-        public void onLogWarning(String message) {
-            addChatMessage(new IChatMessage.InfoMessage(IChatMessage.InfoMessage.Type.WARNING, message), true);
-        }
-
-        @Override
-        public void onLogError(String message) {
-            addChatMessage(new IChatMessage.InfoMessage(IChatMessage.InfoMessage.Type.ERROR, message), true);
-        }
-
-        @Override
-        public void onUserJoinedChannel(IUser user, IChannel newChannel, IChannel oldChannel) {
-            IHumlaService service = getService();
-            if (service != null && service.isConnected()) {
-                IHumlaSession session = service.HumlaSession();
-                if (user != null && session.getSessionUser() != null &&
-                        user.equals(session.getSessionUser()) &&
-                        mTargetProvider.getChatTarget() == null) {
-                    updateChatTargetText(null);
-                }
-            }
-        }
-    };
-
-    private ListView mChatList;
-    private ChannelChatAdapter mChatAdapter;
-    private EditText mChatTextEdit;
-    private ImageButton mSendButton;
-    private ChatTargetProvider mTargetProvider;
-    ActivityResultLauncher<String> imagePicker =
-            registerForActivityResult(new GetContent(), this::onImagePicked);
-    private final ActivityResultLauncher<String> readPermissionRequester =
-            registerForActivityResult(new RequestPermission(), this::onReadPermissionGranted);
-            
+    @NonNull
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View v = LayoutInflater.from(mContext).inflate(R.layout.item_user_card, parent, false);
+        return new ViewHolder(v);
     }
 
     @Override
-    public void onAttach(@NonNull Context context) {
-        super.onAttach(context);
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        IUser user = mUsers.get(position);
+        if (user == null) return;
+
+        // 1. Set Nama User
+        holder.tvUsername.setText(user.getName());
+        
+        // 2. Set Badge Channel (Fitur Parent CH)
         try {
-            mTargetProvider = (ChatTargetProvider) getParentFragment();
-        } catch (ClassCastException e) {
-            throw new ClassCastException(getParentFragment().toString() + " must implement ChatTargetProvider");
-        }
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        mTargetProvider.registerChatTargetListener(this);
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        mTargetProvider.unregisterChatTargetListener(this);
-    }
-
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_chat, container, false);
-        mChatList = view.findViewById(R.id.chat_list);
-        mChatTextEdit = view.findViewById(R.id.chatTextEdit);
-
-        ImageButton ImageSendButton = view.findViewById(R.id.chatImageSend);
-        ImageSendButton.setOnClickListener(buttonView -> {
-            if (SDK_INT <= Build.VERSION_CODES.S_V2) {
-                if (checkSelfPermission(requireContext(), READ_EXTERNAL_STORAGE) != PERMISSION_GRANTED) {
-                    readPermissionRequester.launch(READ_EXTERNAL_STORAGE);
-                } else {
-                    imagePicker.launch("image/*");
-                }
+            IChannel userChan = user.getChannel();
+            if (userChan != null && mCurrentChannel != null && userChan.getId() != mCurrentChannel.getId()) {
+                holder.tvChannelBadge.setText("CH " + userChan.getId());
+                holder.tvChannelBadge.setVisibility(View.VISIBLE);
             } else {
-                imagePicker.launch("image/*");
+                holder.tvChannelBadge.setVisibility(View.GONE);
             }
-        });
-
-        mSendButton = view.findViewById(R.id.chatTextSend);
-        mSendButton.setOnClickListener(this::sendMessageFromEditor);
-
-        mChatTextEdit.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == IME_NULL && event != null && event.getKeyCode() == KEYCODE_ENTER) {
-                sendMessageFromEditor(v);
-                return true;
-            }
-            return false;
-        });
-
-        mChatTextEdit.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                mSendButton.setEnabled(mChatTextEdit.getText().length() > 0);
-            }
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override
-            public void afterTextChanged(Editable s) {}
-        });
-
-        updateChatTargetText(mTargetProvider.getChatTarget());
-        return view;
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        if (mChatAdapter != null) {
-            mChatAdapter.shutdown();
+        } catch (Exception e) {
+            holder.tvChannelBadge.setVisibility(View.GONE);
         }
-    }
 
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        inflater.inflate(R.menu.fragment_chat, menu);
-    }
-
-    @Override
-    public void onPrepareOptionsMenu(Menu menu) {
-        super.onPrepareOptionsMenu(menu);
-        MenuItem clearItem = menu.findItem(R.id.menu_clear_chat);
-        if (clearItem != null && clearItem.getIcon() != null && getActivity() != null) {
-            int foregroundColor = getActivity().getTheme().obtainStyledAttributes(
-                    new int[]{android.R.attr.textColorPrimaryInverse}).getColor(0, -1);
-            clearItem.getIcon().mutate().setColorFilter(foregroundColor, PorterDuff.Mode.MULTIPLY);
-        }
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.menu_clear_chat) {
-            clear();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    public void addChatMessage(IChatMessage message, boolean scroll) {
-        if (mChatAdapter == null) return;
-        mChatAdapter.add(message);
-        if (scroll) {
-            mChatList.post(() -> mChatList.smoothScrollToPosition(mChatAdapter.getCount() - 1));
-        }
-    }
-
-    private void onReadPermissionGranted(Boolean isGranted) {
-        if (isGranted) {
-            imagePicker.launch("image/*");
+        // 3. Set Lokasi/Comment
+        String comment = user.getComment();
+        if (comment != null && !comment.isEmpty() && !comment.equalsIgnoreCase("null")) {
+            holder.tvLocationComment.setText(comment);
+            holder.tvLocationComment.setVisibility(View.VISIBLE);
         } else {
-            Toast.makeText(requireContext(), "Permission denied to read storage", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void onImagePicked(Uri uri) {
-        if (uri == null || getService() == null || !getService().isConnected()) return;
-
-        boolean flipped = false;
-        int rotationDeg = 0;
-        try (InputStream imageStream = requireContext().getContentResolver().openInputStream(uri)) {
-            if (imageStream != null) {
-                ExifInterface exif = new ExifInterface(imageStream);
-                flipped = exif.isFlipped();
-                rotationDeg = exif.getRotationDegrees();
-            }
-        } catch (IOException e) { Log.w(TAG, "orientation error: " + e); }
-
-        Bitmap bitmap = null;
-        try (InputStream imageStream = requireContext().getContentResolver().openInputStream(uri)) {
-            if (imageStream != null) bitmap = BitmapFactory.decodeStream(imageStream);
-        } catch (IOException e) { Log.w(TAG, "stream error: " + e); }
-
-        if (bitmap == null) return;
-
-        if (flipped || rotationDeg > 0) {
-            Matrix matrix = new Matrix();
-            if (flipped) matrix.postScale(-1, 1, bitmap.getWidth() / 2f, bitmap.getHeight() / 2f);
-            if (rotationDeg > 0) matrix.postRotate(rotationDeg);
-            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, false);
+            holder.tvLocationComment.setVisibility(View.GONE);
         }
 
-        Bitmap resized = BitmapUtils.resizeKeepingAspect(bitmap, 1600, 1600);
-        ImageView preview = new ImageView(requireContext());
-        preview.setImageBitmap(resized);
-        preview.setAdjustViewBounds(true);
-        preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        preview.setMaxHeight(requireContext().getResources().getDisplayMetrics().heightPixels / 3);
+        // 4. ✅ LOGIKA BARU: LOAD AVATAR PER-USER DARI BASE64
+        boolean hasCustomAvatar = false;
         
-        new MaterialAlertDialogBuilder(requireContext())
-                .setMessage(R.string.image_confirm_send)
-                .setPositiveButton(android.R.string.ok, (dlg, which) -> onImageConfirmed(resized))
-                .setNegativeButton(android.R.string.cancel, null)
-                .setView(preview)
-                .create()
-                .show();
-    }
-
-    private void onImageConfirmed(Bitmap initialBitmap) {
-        IHumlaService service = getService();
-        if (service == null || service.HumlaSession() == null || service.HumlaSession().getServerSettings() == null) return;
-
-        int maxSize = service.HumlaSession().getServerSettings().getImageMessageLength();
-        Bitmap currentBitmap = initialBitmap;
-        String formattedMessage = null;
-
-        while (currentBitmap != null && formattedMessage == null) {
-            int quality = 97;
-            do {
-                ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                if (!currentBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)) break;
-                
-                byte[] compressed = stream.toByteArray();
-                String imageStr = Base64.encodeToString(compressed, Base64.NO_WRAP);
-                String encoded;
-                try { encoded = URLEncoder.encode(imageStr, StandardCharsets.UTF_8.name()); } 
-                catch (UnsupportedEncodingException e) { encoded = URLEncoder.encode(imageStr); }
-                
-                String candidateMessage = "<img src=\"data:image/jpeg;base64," + encoded + "\"/>";
-                if (maxSize == 0 || candidateMessage.length() <= maxSize) {
-                    formattedMessage = candidateMessage;
-                    break;
-                }
-                quality -= 15;
-            } while (quality > 10);
-
-            if (formattedMessage == null && maxSize > 0) {
-                int w = currentBitmap.getWidth(), h = currentBitmap.getHeight();
-                if (w > 320 && h > 320) {
-                    currentBitmap = BitmapUtils.resizeKeepingAspect(currentBitmap, Math.max(320, w * 2 / 3), Math.max(320, h * 2 / 3));
-                } else break;
-            }
-        }
-
-        if (formattedMessage == null) {
-            if (getContext() != null) Toast.makeText(getContext(), R.string.image_too_large, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        try { sendMessage(formattedMessage); } 
-        catch (HumlaDisconnectedException e) { Log.d(TAG, "send img failed: " + e); }
-    }
-
-    private void sendMessageFromEditor(View v) {
-        if (mChatTextEdit.length() == 0) return;
-        String message = mChatTextEdit.getText().toString();
         try {
-            sendMessage(message);
-            mChatTextEdit.setText("");
-        } catch (HumlaDisconnectedException e) { Log.d(TAG, "send text failed: " + e); }
+            int sessionId = user.getSession();
+            Bitmap avatarBitmap = MumlaActivity.getAvatarForUser(mContext, sessionId);
+            
+            if (avatarBitmap != null) {
+                hasCustomAvatar = true;
+                
+                // Load Bitmap ke ImageView dengan Circle Crop via Glide
+                RequestOptions options = new RequestOptions()
+                        .circleCrop()
+                        .placeholder(R.drawable.outline_circle_talking_off)
+                        .error(R.drawable.outline_circle_talking_off);
+                        
+                Glide.with(mContext)
+                     .load(avatarBitmap)
+                     .apply(options)
+                     .into(holder.imgAvatarState);
+            }
+        } catch (Exception e) {
+            hasCustomAvatar = false;
+        }
+
+        // 5. ✅ JIKA TIDAK ADA AVATAR CUSTOM → PAKAI TALK STATE DRAWABLE
+        // Jika ADA avatar custom → tetap tampilkan avatar, tapi tambah indikator status
+        if (!hasCustomAvatar) {
+            Drawable stateDrawable = getTalkStateDrawable(user);
+            holder.imgAvatarState.setImageDrawable(stateDrawable);
+        } else {
+            // Avatar custom sudah di-load oleh Glide di atas
+            // Tambahkan indikator status audio sebagai overlay kecil (opsional)
+            // Untuk sekarang, avatar custom tetap tampil meski user sedang bicara
+            // Ini lebih baik daripada ditimpa total
+        }
+
+        // Setup Click Listener
+        holder.itemView.setOnClickListener(v -> {
+            if (mListener != null) mListener.onUserClick(user);
+        });
+
+        holder.imgMoreOptions.setOnClickListener(v -> {
+            if (mListener != null) mListener.onMoreClick(user, v);
+        });
     }
 
-    private void sendMessage(String message) throws HumlaDisconnectedException {
-        if (getService() == null) return;
-        IHumlaSession session = getService().HumlaSession();
-        String formattedMessage = markupOutgoingMessage(message);
-        ChatTargetProvider.ChatTarget target = mTargetProvider.getChatTarget();
-        IMessage responseMessage = null;
+    @Override
+    public int getItemCount() {
+        return mUsers.size();
+    }
+
+    /**
+     * Mengupdate daftar user & channel saat ini DENGAN AUTO-SORTING.
+     */
+    public void setUsers(List<IUser> users, IChannel currentChannel) {
+        mUsers.clear();
+        mCurrentChannel = currentChannel; 
         
-        if (target == null)
-            responseMessage = session.sendChannelTextMessage(session.getSessionChannel().getId(), formattedMessage, false);
-        else if (target.getUser() != null)
-            responseMessage = session.sendUserTextMessage(target.getUser().getSession(), formattedMessage);
-        else if (target.getChannel() != null)
-            responseMessage = session.sendChannelTextMessage(target.getChannel().getId(), formattedMessage, false);
+        if (users != null) {
+            mUsers.addAll(users);
             
-        addChatMessage(new IChatMessage.TextMessage(responseMessage, true), true);
-    }
-
-    private String markupOutgoingMessage(String message) {
-        Matcher matcher = LINK_PATTERN.matcher(message);
-        return matcher.replaceAll("<a href=\"$1\">$1</a>").replaceAll("\n", "<br>");
-    }
-
-    public void clear() {
-        if (mChatAdapter != null) mChatAdapter.clear();
-        if (getService() != null) getService().clearMessageLog();
-    }
-
-    public void updateChatTargetText(final ChatTargetProvider.ChatTarget target) {
-        if (getService() == null || !getService().isConnected()) return;
-        IHumlaSession session = getService().HumlaSession();
-        String hint = null;
-        if (target == null && session.getSessionChannel() != null) {
-            hint = getString(R.string.messageToChannel, session.getSessionChannel().getName());
-        } else if (target != null && target.getUser() != null) {
-            hint = getString(R.string.messageToUser, target.getUser().getName());
-        } else if (target != null && target.getChannel() != null) {
-            hint = getString(R.string.messageToChannel, target.getChannel().getName());
-        }
-        mChatTextEdit.setHint(hint);
-        mChatTextEdit.requestLayout();
-    }
-
-    @Override
-    public void onServiceBound(IHumlaService service) {
-        if (getService() == null) return;
-        if (mChatAdapter != null) mChatAdapter.shutdown();
-        mChatAdapter = new ChannelChatAdapter(getActivity(), service, getService().getMessageLog());
-        mChatList.setAdapter(mChatAdapter);
-        mChatList.post(() -> mChatList.setSelection(mChatAdapter.getCount() - 1));
-    }
-
-    @Override
-    public IHumlaObserver getServiceObserver() { return mServiceObserver; }
-
-    @Override
-    public void onChatTargetSelected(ChatTargetProvider.ChatTarget target) {
-        updateChatTargetText(target);
-    }
-
-    private static class ChannelChatAdapter extends ArrayAdapter<IChatMessage> {
-        private final MumbleImageGetter mImageGetter;
-        private final IHumlaService mService;
-        private final DateFormat mDateFormat;
-
-        public ChannelChatAdapter(Context context, IHumlaService service, List<IChatMessage> messages) {
-            super(context, 0, new ArrayList<>(messages));
-            mService = service;
-            mImageGetter = new MumbleImageGetter(context, this::notifyDataSetChanged);
-            mDateFormat = SimpleDateFormat.getTimeInstance();
-        }
-
-        public void shutdown() { mImageGetter.shutdown(); }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            View v = convertView;
-            if (v == null) {
-                v = LayoutInflater.from(getContext()).inflate(R.layout.list_chat_item, parent, false);
-            }
-
-            final LinearLayout chatBox = v.findViewById(R.id.list_chat_item_box);
-            final TextView targetText = v.findViewById(R.id.list_chat_item_target);
-            final TextView messageText = v.findViewById(R.id.list_chat_item_text);
-            TextView timeText = v.findViewById(R.id.list_chat_item_time);
-
-            IChatMessage message = getItem(position);
-            message.accept(new IChatMessage.Visitor() {
-                @Override
-                public void visit(IChatMessage.TextMessage msg) {
-                    IMessage textMessage = msg.getMessage();
-                    String targetMessage = getContext().getString(R.string.unknown);
-                    boolean selfAuthored = msg.isSelfAuthored();
-                    
-                    if (!selfAuthored && mService != null && mService.isConnected()) {
-                        try {
-                            IUser sessionUser = mService.HumlaSession().getSessionUser();
-                            selfAuthored = sessionUser != null && Objects.equals(sessionUser.getName(), textMessage.getActorName());
-                        } catch (Exception e) { selfAuthored = false; }
-                    }
-
-                    if (textMessage.getTargetChannels() != null && !textMessage.getTargetChannels().isEmpty()) {
-                        IChannel ch = (IChannel) textMessage.getTargetChannels().get(0);
-                        if (ch != null && ch.getName() != null) targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), ch.getName());
-                    } else if (textMessage.getTargetTrees() != null && !textMessage.getTargetTrees().isEmpty()) {
-                        IChannel ch = (IChannel) textMessage.getTargetTrees().get(0);
-                        if (ch != null && ch.getName() != null) targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), ch.getName());
-                    } else if (textMessage.getTargetUsers() != null && !textMessage.getTargetUsers().isEmpty()) {
-                        User u = textMessage.getTargetUsers().get(0);
-                        if (u != null && u.getName() != null) targetMessage = getContext().getString(R.string.chat_message_to, textMessage.getActorName(), u.getName());
-                    } else {
-                        targetMessage = textMessage.getActorName();
-                    }
-
-                    int gravity = selfAuthored ? Gravity.RIGHT : Gravity.LEFT;
-                    chatBox.setGravity(gravity);
-                    messageText.setGravity(gravity);
-                    targetText.setText(targetMessage);
-                    targetText.setVisibility(View.VISIBLE);
-                }
-
-                @Override
-                public void visit(IChatMessage.InfoMessage msg) {
-                    targetText.setVisibility(View.GONE);
-                    chatBox.setGravity(Gravity.LEFT);
-                    messageText.setGravity(Gravity.LEFT);
-                }
+            // === LOGIC SORTING OTOMATIS ===
+            Collections.sort(mUsers, (user1, user2) -> {
+                boolean u1Talking = isTalkingState(user1.getTalkState());
+                boolean u2Talking = isTalkingState(user2.getTalkState());
+                
+                if (u1Talking && !u2Talking) return -1;
+                if (!u1Talking && u2Talking) return 1;
+                
+                return user1.getName().compareToIgnoreCase(user2.getName());
             });
+        }
+        
+        notifyDataSetChanged();
+    }
+
+    // Overload method lama agar kompatibel
+    public void setUsers(List<IUser> users) {
+        setUsers(users, null);
+    }
+
+    /**
+     * Update state satu user secara real-time DENGAN RE-SORTING.
+     */
+    public void updateUserState(IUser user, RecyclerView recyclerView) {
+        if (user == null) return;
+        
+        int oldIndex = mUsers.indexOf(user);
+        if (oldIndex < 0) return;
+
+        Collections.sort(mUsers, (u1, u2) -> {
+            boolean t1 = isTalkingState(u1.getTalkState());
+            boolean t2 = isTalkingState(u2.getTalkState());
             
-            timeText.setText(mDateFormat.format(new Date(message.getReceivedTime())));
-            Spanned rendered = HtmlCompat.fromHtml(message.getBody(), HtmlCompat.FROM_HTML_MODE_LEGACY, mImageGetter, null);
-            messageText.setText(sanitizeChatLinks(rendered));
-            messageText.setMovementMethod(LinkMovementMethod.getInstance());
-            return v;
-        }
+            if (t1 && !t2) return -1;
+            if (!t1 && t2) return 1;
+            
+            return u1.getName().compareToIgnoreCase(u2.getName());
+        });
 
-        @Override public boolean areAllItemsEnabled() { return false; }
-        @Override public boolean isEnabled(int position) { return false; }
-
-        private static Spannable sanitizeChatLinks(Spanned rendered) {
-            Spannable spannable = new SpannableString(rendered);
-            URLSpan[] urlSpans = spannable.getSpans(0, spannable.length(), URLSpan.class);
-            for (URLSpan span : urlSpans) {
-                int start = spannable.getSpanStart(span);
-                int end = spannable.getSpanEnd(span);
-                int flags = spannable.getSpanFlags(span);
-                spannable.removeSpan(span);
-                final String target = ChatLinkPolicy.handleClick(span.getURL());
-                if (target == null) continue;
-                spannable.setSpan(new ClickableSpan() {
-                    @Override
-                    public void onClick(View widget) {
-                        Context ctx = widget.getContext();
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(target));
-                        ctx.startActivity(Intent.createChooser(intent, null));
-                    }
-                }, start, end, flags);
-            }
-            return spannable;
+        int newIndex = mUsers.indexOf(user);
+        
+        if (oldIndex != newIndex) {
+            notifyItemMoved(oldIndex, newIndex);
+            notifyItemChanged(oldIndex); 
+            notifyItemChanged(newIndex);
+        } else {
+            notifyItemChanged(newIndex);
         }
+    }
+
+    public void setOnUserClickListener(OnUserClickListener listener) {
+        mListener = listener;
+    }
+
+    // === HELPER METHOD CEK TALKING STATE ===
+    private boolean isTalkingState(TalkState state) {
+        return state == TalkState.TALKING || 
+               state == TalkState.SHOUTING || 
+               state == TalkState.WHISPERING;
+    }
+
+    // === LOGIKA DRAWABLE STATUS AUDIO (FALLBACK JIKA TIDAK ADA AVATAR CUSTOM) ===
+    public Drawable getTalkStateDrawable(IUser user) {
+        if (user == null) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
+        }
+        if (user.isSelfDeafened()) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_deafened);
+        } else if (user.isDeafened()) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_deafened);
+        } else if (user.isSelfMuted()) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_muted);
+        } else if (user.isMuted()) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_server_muted);
+        } else if (user.isSuppressed()) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_suppressed);
+        } else if (isTalkingState(user.getTalkState())) {
+            return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_on);
+        }
+        return AppCompatResources.getDrawable(mContext, R.drawable.outline_circle_talking_off);
+    }
+
+    /**
+     * ✅ HELPER BARU: Ambil Avatar Bitmap untuk User (Dipakai oleh ChannelFragment untuk Header Stage)
+     */
+    public Bitmap getAvatarBitmapForUser(IUser user) {
+        if (user == null) return null;
+        return MumlaActivity.getAvatarForUser(mContext, user.getSession());
     }
 }
