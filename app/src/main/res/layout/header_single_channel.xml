@@ -175,7 +175,7 @@
         android:contentDescription="Floating Support Animation"
         android:alpha="0.95"/>
 
-    <!-- TOMBOL EDIT INFO CHANNEL (POJOK KANAN ATAS) -->
+    <!-- TOMBOL EDIT INFO / SUPPORT PICKER (POJOK KANAN ATAS) -->
     <ImageButton
         android:id="@+id/btn_edit_channel_info"
         android:layout_width="40dp"
@@ -186,21 +186,8 @@
         android:src="@drawable/ic_registered" 
         android:background="?attr/selectableItemBackgroundBorderless"
         android:tint="#90CAF9" 
-        android:contentDescription="Edit Informasi Channel"
+        android:contentDescription="Pilih Animasi Support"
         android:visibility="gone" 
         android:elevation="4dp"/>
-
-    <!-- ✅ TOMBOL TEST LOAD GIF DARI PATH (SEMENTARA FASE 1) -->
-    <ImageButton
-        android:id="@+id/btn_test_path_gif"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="bottom|end"
-        android:layout_marginBottom="16dp"
-        android:layout_marginEnd="16dp"
-        android:src="@drawable/ic_launcher_foreground"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Test Path GIF"
-        android:elevation="8dp"/>
 
 </FrameLayout>
