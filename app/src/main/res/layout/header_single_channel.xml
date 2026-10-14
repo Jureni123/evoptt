@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ROOT FRAMELAYOUT: Light Mode Premium + Floating Overlay Support -->
+<!-- ROOT FRAMELAYOUT: Dark Ocean Premium + Floating Overlay Support -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#F5F7FA" 
+    android:background="#0D47A1" 
     android:paddingTop="16dp"
     android:paddingBottom="12dp">
 
@@ -26,14 +26,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="CH 1"
-                android:textColor="#78909C" 
+                android:textColor="#90CAF9" 
                 android:textSize="12sp"
                 android:textStyle="bold"/>
                 
             <TextView
                 android:layout_width="4dp"
                 android:layout_height="4dp"
-                android:background="#B0BEC5"
+                android:background="#64B5F6"
                 android:layout_marginHorizontal="8dp"/> 
 
             <TextView
@@ -41,7 +41,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="00.PERTAMA"
-                android:textColor="#1A1A1A" 
+                android:textColor="#FFFFFF" 
                 android:textSize="18sp" 
                 android:textStyle="bold"
                 android:maxLines="1"
@@ -64,7 +64,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Deskripsi channel..."
-            android:textColor="#546E7A" 
+            android:textColor="#BBDEFB" 
             android:textSize="13sp"
             android:gravity="center"
             android:paddingHorizontal="24dp"
@@ -72,13 +72,13 @@
             android:maxLines="2"
             android:ellipsize="end"/>
 
-        <!-- PAPAN INFO REAL-TIME (ROYAL BLUE) -->
+        <!-- PAPAN INFO REAL-TIME (ROYAL BLUE TERANG DI ATAS BACKGROUND GELAP) -->
         <TextView
             android:id="@+id/tv_channel_info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text=""
-            android:textColor="#0056B3" 
+            android:textColor="#E3F2FD" 
             android:textSize="14sp"
             android:textStyle="bold"
             android:gravity="center"
@@ -89,17 +89,17 @@
             android:layout_marginTop="8dp"
             android:maxLines="2"
             android:ellipsize="end"
-            android:shadowColor="#FFFFFF"
+            android:shadowColor="#000000"
             android:shadowDx="0"
-            android:shadowDy="0"
+            android:shadowDy="1"
             android:shadowRadius="4"/>
 
-        <!-- ANNOUNCEMENT OVERLAY BOARD -->
+        <!-- ANNOUNCEMENT OVERLAY BOARD (PUTIH BERSIH AGAR KONTRAS) -->
         <TextView
             android:id="@+id/tv_announcement_overlay"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#E3F2FD" 
+            android:background="#FFFFFF" 
             android:textColor="#0D47A1" 
             android:textSize="14sp"
             android:textStyle="bold"
@@ -111,7 +111,7 @@
             android:layout_marginTop="12dp"
             android:elevation="2dp"/>
 
-        <!-- SMART ADMIN INPUT -->
+        <!-- SMART ADMIN INPUT (PUTIH BERSIH AGAR KONTRAS) -->
         <LinearLayout
             android:id="@+id/admin_input_container"
             android:layout_width="match_parent"
@@ -143,7 +143,7 @@
                 android:layout_height="48dp"
                 android:src="@drawable/ic_action_send"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="#0056B3" 
+                android:tint="#0D47A1" 
                 android:contentDescription="Kirim Pengumuman"/>
         </LinearLayout>
             
@@ -155,7 +155,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Armanto"
-        android:textColor="#00897B" 
+        android:textColor="#80CBC4" 
         android:textSize="16sp"
         android:textStyle="bold"
         android:layout_gravity="center" 
@@ -185,7 +185,7 @@
         android:layout_marginEnd="8dp"
         android:src="@drawable/ic_registered" 
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:tint="#0056B3" 
+        android:tint="#90CAF9" 
         android:contentDescription="Edit Informasi Channel"
         android:visibility="gone" 
         android:elevation="4dp"/>
