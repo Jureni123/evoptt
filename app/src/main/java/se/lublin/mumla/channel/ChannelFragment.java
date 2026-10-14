@@ -130,9 +130,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     
     // ✅ VARIABEL TOMBOL EDIT INFO / SUPPORT PICKER (POJOK KANAN ATAS)
     private ImageButton mBtnEditInfo;
-    
-    // ✅ VARIABEL TOMBOL UPLOAD AVATAR
-    private ImageButton mBtnUploadAvatar;
 
     private ChatTarget mChatTarget;
     private List<OnChatTargetSelectedListener> mChatTargetListeners = new ArrayList<>();
@@ -321,12 +318,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 showDynamicSupportPicker();
             });
             
-            // ✅ TOMBOL BARU: UPLOAD AVATAR (Letakkan di layout header_single_channel.xml)
-            mBtnUploadAvatar = mHeaderSingleCh.findViewById(R.id.btn_upload_avatar);
-            if (mBtnUploadAvatar != null) {
-                mBtnUploadAvatar.setOnClickListener(v -> imagePicker.launch("image/*"));
-            }
-
             // ✅ SMART ADMIN INPUT (LONG PRESS HEADER)
             mAdminInputContainer = mHeaderSingleCh.findViewById(R.id.admin_input_container);
             mEtAdminAnnounce = mHeaderSingleCh.findViewById(R.id.et_admin_announce);
@@ -993,7 +984,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mTvChannelId=null; mTvChannelName=null; mTvSpeakerName=null; mImgMainAvatar=null; mTvChannelDesc=null;
         mTvAnnouncementOverlay=null; mTvChannelInfo=null; mImgFloatingSupport=null;
         mAdminInputContainer=null; mEtAdminAnnounce=null; mBtnSendAnnounce=null;
-        mBtnEditInfo=null; mBtnUploadAvatar=null;
+        mBtnEditInfo=null; 
         mBottomControlBar=null; mBtnGlobalSet=null; mBtnAudioMenu=null; mBtnListCh=null; mBtnSessionMenu=null; mPttContainer=null;
     }
 
