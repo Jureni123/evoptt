@@ -212,7 +212,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         int oldIndex = mUsers.indexOf(user);
         if (oldIndex < 0) return;
 
-        Collections.sort(mUsers, (u1, u2) {
+        Collections.sort(mUsers, (u1, u2) -> {
             boolean t1 = isTalkingState(u1.getTalkState());
             boolean t2 = isTalkingState(u2.getTalkState());
             
