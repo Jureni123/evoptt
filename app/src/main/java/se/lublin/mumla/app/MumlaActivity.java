@@ -74,7 +74,10 @@ import org.jetbrains.annotations.NotNull;
 import android.text.TextUtils;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -133,6 +136,10 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     
     private boolean mAutoConnectAttempted = false;
     // ----------------------------------------------
+
+    // ✅ KONSTANTA BARU UNTUK FITUR FOTO PROFIL
+    private static final int REQUEST_CODE_PICK_PROFILE = 2001;
+    private static final String PREF_PROFILE_PHOTO_PATH = "profile_photo_path";
 
     public static final String EXTRA_DRAWER_FRAGMENT = "drawer_fragment";
 
@@ -767,10 +774,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 
             // ✅ CASE BARU: MENU FOTO PROFIL
             case DrawerAdapter.ITEM_PROFILE_PHOTO:
-                // SEMENTARA: Tampilkan Toast untuk memastikan klik terdeteksi
-                Toast.makeText(this, "Menu Foto Profil Diklik!", Toast.LENGTH_SHORT).show();
-                
-                // NANTI KITA GANTI DENGAN: openProfilePhotoPicker();
+                checkAndOpenGallery();
                 return; // Return agar tidak lanjut ke load fragment
                 
             case DrawerAdapter.ITEM_SETTINGS:
@@ -920,6 +924,15 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     }
                 }
                 connectToServerWithPerm();
+                break;
+                
+            // ✅ HANDLE HASIL PERMISSION FOTO PROFIL
+            case REQUEST_CODE_PICK_PROFILE:
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    openGalleryPicker();
+                } else {
+                    Toast.makeText(this, "Izin akses galeri ditolak", Toast.LENGTH_SHORT).show();
+                }
                 break;
         }
     }
@@ -1208,6 +1221,100 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     public void openNavigationDrawer() {
         if (mDrawerLayout != null) {
             mDrawerLayout.openDrawer(GravityCompat.START);
+        }
+    }
+    // =========================================================================
+
+    // =========================================================================
+    // === METODE BARU: UPLOAD & SIMPAN FOTO PROFIL ===
+    // =========================================================================
+    
+    /**
+     * Cek permission storage sebelum buka galeri (Support Android 13+)
+     */
+    private void checkAndOpenGallery() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, 
+                    new String[]{Manifest.permission.READ_MEDIA_IMAGES}, 
+                    REQUEST_CODE_PICK_PROFILE);
+                return;
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, 
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 
+                    REQUEST_CODE_PICK_PROFILE);
+                return;
+            }
+        }
+        openGalleryPicker();
+    }
+
+    /**
+     * Buka Intent Picker Gambar
+     */
+    private void openGalleryPicker() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*"); // Support JPG, PNG, GIF
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(Intent.createChooser(intent, "Pilih Foto Profil"), REQUEST_CODE_PICK_PROFILE);
+    }
+
+    /**
+     * Handle Hasil Pilihan Gambar dari Galeri
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == REQUEST_CODE_PICK_PROFILE && resultCode == RESULT_OK && data != null) {
+            Uri imageUri = data.getData();
+            if (imageUri != null) {
+                saveProfilePhotoLocally(imageUri);
+            }
+        }
+    }
+
+    /**
+     * Simpan Foto ke Internal Storage App
+     */
+    private void saveProfilePhotoLocally(Uri sourceUri) {
+        try {
+            // Buat folder khusus profil
+            File profilesDir = new File(getFilesDir(), "profiles");
+            if (!profilesDir.exists()) profilesDir.mkdirs();
+            
+            // Nama file unik berdasarkan waktu
+            String fileName = "profile_" + System.currentTimeMillis() + ".jpg";
+            File destFile = new File(profilesDir, fileName);
+            
+            // Copy stream dari URI galeri ke file internal
+            InputStream inputStream = getContentResolver().openInputStream(sourceUri);
+            FileOutputStream outputStream = new FileOutputStream(destFile);
+            
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            
+            inputStream.close();
+            outputStream.close();
+            
+            // Simpan path absolut di SharedPreferences
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .putString(PREF_PROFILE_PHOTO_PATH, destFile.getAbsolutePath())
+                .apply();
+                
+            Toast.makeText(this, "Foto profil berhasil disimpan!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Gagal simpan foto profil", e);
+            Toast.makeText(this, "Gagal menyimpan foto", Toast.LENGTH_SHORT).show();
         }
     }
     // =========================================================================
