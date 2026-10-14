@@ -14,6 +14,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -438,7 +439,13 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 .apply();
 
             Toast.makeText(getContext(), "Foto profil berhasil diperbarui!", Toast.LENGTH_SHORT).show();
-            refreshSingleChannelView();
+            
+            // ✅ FIX: Delay 500ms biar file system selesai menulis sebelum adapter baca
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (isAdded() && mSingleUserAdapter != null) {
+                    refreshSingleChannelView();
+                }
+            }, 500);
 
         } catch (Exception e) {
             Log.e(TAG, "Error processing avatar", e);
@@ -472,7 +479,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         }
     }
 
-    // ✅ RESEND OTOMATIS SAAT CONNECT ULANG
+    // ✅ RESEND OTOMATIS SAAT CONNECT ULANG (DIPANGGIL MANUAL JIKA PERLU)
     private void resendMyAvatar() {
         if (!isAdded() || getActivity() == null) return;
         
@@ -1000,8 +1007,8 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 mSingleChContainer.setVisibility(View.VISIBLE);
                 refreshSingleChannelView();
             }
-            // ✅ RESEND AVATAR SAAT CONNECT
-            resendMyAvatar();
+            // ✅ FIX: HAPUS resendMyAvatar() DI SINI AGAR TIDAK RECONNECT LOOP
+            // Avatar akan dimuat murni dari file lokal oleh adapter
         } else {
             if (mSingleChContainer != null) mSingleChContainer.setVisibility(View.GONE);
         }
