@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- BOTTOM SHEET: Dynamic Support GIF Picker -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -6,74 +7,32 @@
     android:padding="20dp"
     android:background="#FFFFFF">
 
+    <!-- JUDUL PICKER -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Klik/Pilih Animasi"
+        android:text="Pilih Animasi Support"
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="#0D47A1"
         android:gravity="center"
-        android:layout_marginBottom="20dp"/>
+        android:layout_marginBottom="16dp"/>
 
-    <LinearLayout
+    <!-- RECYCLERVIEW DINAMIS (ID HARUS PERSIS rv_gif_picker) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_gif_picker"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:weightSum="4">
+        android:padding="4dp"
+        android:clipToPadding="false"/>
 
-        <!-- CLAP: Pakai GIF Asli -->
-        <ImageButton
-            android:id="@+id/btn_gif_clap"
-            android:layout_width="0dp"
-            android:layout_height="70dp"
-            android:layout_weight="1"
-            android:src="@drawable/ton_clap"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="centerInside"
-            android:contentDescription="Tepuk Tangan"/>
-
-        <!-- HEART: Pakai Placeholder Pink -->
-        <ImageButton
-            android:id="@+id/btn_gif_heart"
-            android:layout_width="0dp"
-            android:layout_height="70dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_heart_placeholder" 
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="centerInside"
-            android:contentDescription="Hati"/>
-
-        <!-- FIRE: Pakai Placeholder Oranye -->
-        <ImageButton
-            android:id="@+id/btn_gif_fire"
-            android:layout_width="0dp"
-            android:layout_height="70dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_fire_placeholder"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="centerInside"
-            android:contentDescription="Api"/>
-
-        <!-- LAUGH: Pakai Placeholder Kuning -->
-        <ImageButton
-            android:id="@+id/btn_gif_laugh"
-            android:layout_width="0dp"
-            android:layout_height="70dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_laugh_placeholder"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="centerInside"
-            android:contentDescription="Ngakak"/>
-    </LinearLayout>
-
+    <!-- CATATAN FOOTER -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Semua Penguna Menerima Colekan Anda"
+        android:text="Upload GIF Sendiri (Segera Hadir)"
         android:textSize="12sp"
         android:textColor="#90CAF9"
         android:gravity="center"
-        android:layout_marginTop="20dp"/>
+        android:layout_marginTop="16dp"/>
 </LinearLayout>
