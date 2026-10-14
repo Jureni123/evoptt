@@ -48,6 +48,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONObject;
 
+import java.io.File; // ✅ WAJIB ADA UNTUK METHOD PATH
 import java.util.ArrayList;
 import java.util.List;
 
@@ -280,6 +281,16 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             
             // ✅ INISIALISASI FLOATING SUPPORT ANIMATION
             mImgFloatingSupport = mHeaderSingleCh.findViewById(R.id.img_floating_support);
+
+            // ✅ SETUP TOMBOL TEST PATH GIF (SEMENTARA UNTUK FASE 1)
+            ImageButton btnTestPathGif = mHeaderSingleCh.findViewById(R.id.btn_test_path_gif);
+            if (btnTestPathGif != null) {
+                btnTestPathGif.setOnClickListener(v -> {
+                    // Test langsung pakai resource ID dulu untuk validasi renderer
+                    playFloatingSupport(R.drawable.ton_clap);
+                    Toast.makeText(requireContext(), "Renderer Tested!", Toast.LENGTH_SHORT).show();
+                });
+            }
 
             // ✅ INISIALISASI TOMBOL EDIT INFO
             mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
@@ -560,7 +571,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     // ============================================================
 
     /**
-     * Memutar animasi dukungan melayang di tengah header.
+     * Memutar animasi dukungan melayang di tengah header (Resource ID).
      * @param gifResId ID resource drawable GIF (misal: R.drawable.ton_clap)
      */
     public void playFloatingSupport(int gifResId) {
@@ -584,8 +595,46 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
         mHideSupportRunnable = () -> {
             if (mImgFloatingSupport != null) {
                 mImgFloatingSupport.setVisibility(View.GONE);
-                // Optional: Clear drawable untuk hemat memory
-                // mImgFloatingSupport.setImageDrawable(null); 
+            }
+        };
+        mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
+    }
+
+    /**
+     * Memutar animasi support dari FILE PATH (bukan resource ID).
+     * Untuk testing pipeline load GIF dari storage lokal atau upload user.
+     * @param gifPath Path absolut ke file GIF di internal storage
+     */
+    public void playFloatingSupportFromPath(String gifPath) {
+        if (mImgFloatingSupport == null || !isAdded()) return;
+
+        File gifFile = new File(gifPath);
+        if (!gifFile.exists()) {
+            Log.e(TAG, "GIF file not found: " + gifPath);
+            // Fallback ke default jika file hilang
+            playFloatingSupport(R.drawable.ton_clap);
+            return;
+        }
+
+        // Cancel timer lama
+        if (mHideSupportRunnable != null) {
+            mImgFloatingSupport.removeCallbacks(mHideSupportRunnable);
+        }
+
+        // Load GIF dari file path menggunakan Glide
+        Glide.with(this)
+             .asGif()
+             .load(gifFile)
+             .placeholder(R.drawable.ton_clap)
+             .error(R.drawable.ton_clap)
+             .into(mImgFloatingSupport);
+
+        mImgFloatingSupport.setVisibility(View.VISIBLE);
+
+        // Auto-hide setelah 3 detik
+        mHideSupportRunnable = () -> {
+            if (mImgFloatingSupport != null) {
+                mImgFloatingSupport.setVisibility(View.GONE);
             }
         };
         mImgFloatingSupport.postDelayed(mHideSupportRunnable, 3000);
