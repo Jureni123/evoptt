@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Stage Layout + Safe Support GIF Picker
+ * By Jureni123 Modified for Mumla OLED - Stage Layout + Dynamic Support GIF Scanner
  */
 package se.lublin.mumla.channel;
 
@@ -31,12 +31,14 @@ import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.PagerTabStrip;
@@ -49,6 +51,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -278,7 +281,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                 });
             }
 
-            // ✅ TOMBOL ADMIN JADI PEMBUKA SAFE SUPPORT PICKER
+            // ✅ TOMBOL ADMIN JADI PEMBUKA DYNAMIC SUPPORT PICKER
             mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
             mBtnEditInfo.setOnClickListener(v -> {
                 // Cek cooldown global
@@ -288,7 +291,7 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
                     Toast.makeText(requireContext(), "Tunggu sebentar...", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                showSafeSupportPicker();
+                showDynamicSupportPicker();
             });
 
             // ✅ SMART ADMIN INPUT (LONG PRESS HEADER)
@@ -370,88 +373,148 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
     }
 
     // ============================================================
-    // ✅ FITUR BARU: SAFE SUPPORT GIF PICKER (ANTI-VANDAL)
+    // ✅ FITUR BARU: DYNAMIC SUPPORT GIF SCANNER (AUTO-DISCOVERY)
     // ============================================================
 
     /**
-     * Menampilkan picker GIF yang AMAN & TERKURASI.
+     * Menampilkan picker GIF dinamis yang otomatis scan folder drawable.
      * User hanya bisa KLIK, tidak bisa MENGETIK.
      */
-    private void showSafeSupportPicker() {
+    private void showDynamicSupportPicker() {
         BottomSheetDialog picker = new BottomSheetDialog(requireContext());
         View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_support_picker, null);
         picker.setContentView(sheetView);
 
-        // WHITELIST TRIGGER: Hanya kode ini yang boleh dikirim
-        Map<ImageButton, String> safeTriggers = new HashMap<>();
-        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_clap), "clap");
-        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_heart), "heart");
-        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_fire), "fire");
-        safeTriggers.put(sheetView.findViewById(R.id.btn_gif_laugh), "laugh");
-
-        for (Map.Entry<ImageButton, String> entry : safeTriggers.entrySet()) {
-            ImageButton btn = entry.getKey();
-            final String triggerCode = entry.getValue();
+        RecyclerView rv = sheetView.findViewById(R.id.rv_gif_picker);
+        if (rv != null) {
+            rv.setLayoutManager(new GridLayoutManager(requireContext(), 4)); // 4 kolom
             
-            if (btn != null) {
-                btn.setOnClickListener(clickView -> {
-                    // A. TAMPILKAN GIF DI HP SENDIRI INSTAN
-                    int resId = getSafeResId(triggerCode);
-                    if (resId != 0) playFloatingSupport(resId);
+            // SCAN GIF OTOMATIS DARI DRAWABLE
+            List<GifItem> dynamicGifs = scanDynamicGifs();
+            
+            // Set Adapter Dinamis
+            rv.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                @NonNull
+                @Override
+                public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                    View v = LayoutInflater.from(parent.getContext())
+                             .inflate(R.layout.item_gif_picker, parent, false);
+                    return new RecyclerView.ViewHolder(v) {};
+                }
 
-                    // B. KIRIM TRIGGER AMAN KE SERVER
-                    try {
-                        if (getService() != null && getService().isConnected()) {
-                            IHumlaSession session = getService().HumlaSession();
-                            IChannel currentCh = session.getSessionChannel();
-                            
-                            if (currentCh != null) {
-                                session.sendChannelTextMessage(
-                                    currentCh.getId(), 
-                                    "::SUPPORT::" + triggerCode, 
-                                    false
-                                );
+                @Override
+                public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+                    ImageButton btn = holder.itemView.findViewById(R.id.btn_gif_item);
+                    GifItem item = dynamicGifs.get(position);
+                    
+                    // Load GIF menggunakan Glide agar animasi jalan di picker
+                    Glide.with(requireContext())
+                         .asGif()
+                         .load(item.resId)
+                         .into(btn);
+                    
+                    btn.setOnClickListener(v -> {
+                        // A. TAMPILKAN DI HP SENDIRI INSTAN
+                        playFloatingSupport(item.resId);
+                        
+                        // B. KIRIM TRIGGER MENGGUNAKAN NAMA FILE SEBAGAI KODE AMAN
+                        try {
+                            if (getService() != null && getService().isConnected()) {
+                                IHumlaSession session = getService().HumlaSession();
+                                IChannel currentCh = session.getSessionChannel();
                                 
-                                // Update cooldown
-                                PreferenceManager.getDefaultSharedPreferences(requireContext())
-                                    .edit()
-                                    .putLong("last_support_click", System.currentTimeMillis())
-                                    .apply();
+                                if (currentCh != null) {
+                                    // Trigger = Nama File GIF (misal: "ton_clap")
+                                    session.sendChannelTextMessage(
+                                        currentCh.getId(), 
+                                        "::SUPPORT::" + item.triggerName, 
+                                        false
+                                    );
                                     
-                                Toast.makeText(requireContext(), 
-                                    "Support " + triggerCode + " dikirim!", 
-                                    Toast.LENGTH_SHORT
-                                ).show();
+                                    // Update cooldown
+                                    PreferenceManager.getDefaultSharedPreferences(requireContext())
+                                        .edit()
+                                        .putLong("last_support_click", System.currentTimeMillis())
+                                        .apply();
+                                        
+                                    Toast.makeText(requireContext(), 
+                                        "Support " + item.triggerName + " dikirim!", 
+                                        Toast.LENGTH_SHORT
+                                    ).show();
+                                }
                             }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Gagal kirim support dinamis", e);
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Gagal kirim support aman", e);
-                    }
+                        
+                        picker.dismiss();
+                    });
+                }
 
-                    picker.dismiss();
-                });
-            }
+                @Override
+                public int getItemCount() { return dynamicGifs.size(); }
+            });
         }
 
         picker.show();
     }
 
     /**
-     * Mapping AMAN: Hanya return ID untuk trigger yang terdaftar.
-     * Default fallback ke ton_clap jika trigger tidak dikenal.
+     * Class helper untuk menyimpan data GIF hasil scan
      */
-    private int getSafeResId(String trigger) {
-        switch (trigger) {
-            case "clap": return R.drawable.ton_clap;
-            case "heart": return R.drawable.ic_heart_placeholder; 
-            case "fire": return R.drawable.ic_fire_placeholder;   
-            case "laugh": return R.drawable.ic_laugh_placeholder; 
-            default: return R.drawable.ton_clap;
+    private static class GifItem {
+        int resId;
+        String triggerName;
+        
+        GifItem(int resId, String triggerName) {
+            this.resId = resId;
+            this.triggerName = triggerName;
         }
     }
 
+    /**
+     * Scan otomatis semua resource di R.drawable yang mengandung kata kunci GIF.
+     * Return List<GifItem> berisi Resource ID dan Nama Trigger.
+     */
+    private List<GifItem> scanDynamicGifs() {
+        List<GifItem> gifList = new ArrayList<>();
+        
+        try {
+            Field[] fields = R.drawable.class.getFields();
+            
+            for (Field field : fields) {
+                String resourceName = field.getName();
+                
+                // FILTER: Ambil resource yang namanya mengandung pola GIF support
+                // Bisa disesuaikan dengan naming convention kamu (misal: sup_, anim_, atau nama gif spesifik)
+                boolean isSupportGif = resourceName.equals("ton_clap") || 
+                                       resourceName.equals("kpop") || 
+                                       resourceName.equals("view") || 
+                                       resourceName.equals("tonton_friends") ||
+                                       resourceName.equals("click") ||
+                                       resourceName.startsWith("sup_") ||
+                                       resourceName.startsWith("anim_");
+                
+                if (isSupportGif) {
+                    int resId = field.getInt(null);
+                    // Gunakan nama resource sebagai trigger string yang aman
+                    gifList.add(new GifItem(resId, resourceName)); 
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error scanning gifs via reflection", e);
+        }
+        
+        // Fallback jika scan gagal atau kosong, pastikan ton_clap selalu ada
+        if (gifList.isEmpty()) {
+            gifList.add(new GifItem(R.drawable.ton_clap, "ton_clap"));
+        }
+        
+        return gifList;
+    }
+
     // ============================================================
-    // AKHIR FITUR SAFE SUPPORT
+    // AKHIR FITUR DYNAMIC SUPPORT
     // ============================================================
 
     // === LOGIC UPDATE STAGE HEADER ===
