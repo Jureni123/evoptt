@@ -99,6 +99,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
 
     private static final Pattern LINK_PATTERN = Pattern.compile("(https?://\\S+)");
     
+    // ✅ KONSTANTA PARSER UNIFIED
     private static final String ANNOUNCE_PREFIX = "!announce ";
     private static final String INFO_PREFIX = "::INFO::";
     private static final String SUPPORT_PREFIX = "::SUPPORT::";
@@ -112,25 +113,39 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             String body = message.getMessage();
             if (body == null) return;
 
+            // ============================================================
+            // 1. PARSER AVATAR DINAMIS (::AVATAR::format:base64data)
+            // PRIORITAS TERTINGGI AGAR TIDAK MASUK NOTIFIKASI/CHAT HISTORY
+            // ============================================================
             if (body.startsWith(AVATAR_PREFIX)) {
                 try {
                     String payload = body.substring(AVATAR_PREFIX.length());
                     
+                    // ✅ FIX AMAN: Looping user channel untuk cari session ID
+                    // Menghindari error incompatible types String/int dari getUser()
                     int senderSessionId = -1;
                     String actorName = message.getActorName();
                     
                     if (actorName != null && getService() != null && getService().isConnected()) {
                         try {
-                            IUser foundUser = getService().HumlaSession().getUser(actorName);
-                            if (foundUser != null) {
-                                senderSessionId = foundUser.getSession();
+                            IHumlaSession session = getService().HumlaSession();
+                            IChannel currentCh = session.getSessionChannel();
+                            
+                            if (currentCh != null && currentCh.getUsers() != null) {
+                                for (IUser u : currentCh.getUsers()) {
+                                    if (u != null && actorName.equals(u.getName())) {
+                                        senderSessionId = u.getSession();
+                                        break; 
+                                    }
+                                }
                             }
                         } catch (Exception e) {
-                            Log.w(TAG, "Could not find user by name: " + actorName);
+                            Log.w(TAG, "Error finding user session by name: " + e.getMessage());
                         }
                     }
                     
                     if (senderSessionId > 0 && payload != null && !payload.isEmpty()) {
+                        // Simpan ke SharedPreferences per-session-ID
                         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                         prefs.edit()
                              .putString(PREF_AVATAR_PREFIX + senderSessionId, payload)
@@ -138,6 +153,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                         
                         Log.d(TAG, "✅ Avatar received from session " + senderSessionId + ", size: " + payload.length());
                         
+                        // Trigger refresh UI di parent fragment
                         Fragment parent = getParentFragment();
                         if (parent instanceof ChannelFragment) {
                             ((ChannelFragment) parent).onAvatarUpdated(senderSessionId);
@@ -146,9 +162,14 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 } catch (Exception e) {
                     Log.e(TAG, "Error parsing avatar", e);
                 }
+                
+                // ⚠️ KRUSIAL: RETURN AGAR TIDAK MUNCUL DI CHAT HISTORY & NOTIFIKASI
                 return;
             }
 
+            // ============================================================
+            // 2. PARSER SUPPORT ANIMATION DINAMIS (::SUPPORT::nama_file_gif)
+            // ============================================================
             if (body.startsWith(SUPPORT_PREFIX)) {
                 try {
                     String triggerName = body.substring(SUPPORT_PREFIX.length());
@@ -172,9 +193,13 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 } catch (Exception e) {
                     Log.e(TAG, "Error parsing dynamic support", e);
                 }
+                
                 return;
             }
 
+            // ============================================================
+            // 3. PARSER CHANNEL INFO (::INFO::{...})
+            // ============================================================
             if (body.startsWith(INFO_PREFIX)) {
                 try {
                     String jsonPart = body.substring(INFO_PREFIX.length());
@@ -197,9 +222,13 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                 } catch (Exception e) {
                     Log.w(TAG, "Invalid info JSON", e);
                 }
+                
                 return;
             }
 
+            // ============================================================
+            // 4. PARSER ANNOUNCEMENT (!announce ...)
+            // ============================================================
             if (body.startsWith(ANNOUNCE_PREFIX)) {
                 String announcementText = body.substring(ANNOUNCE_PREFIX.length()).trim();
                 
@@ -220,9 +249,13 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
                     prefs.edit().putString("announcement_ch_" + channelId, announcementText).apply();
                 }
+                
                 return;
             }
             
+            // ============================================================
+            // 5. CHAT NORMAL (Fallback jika bukan prefix khusus)
+            // ============================================================
             addChatMessage(new IChatMessage.TextMessage(message), true);
         }
 
