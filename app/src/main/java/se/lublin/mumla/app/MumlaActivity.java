@@ -1317,7 +1317,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             Toast.makeText(this, "Gagal menyimpan foto", Toast.LENGTH_SHORT).show();
         }
     }
-    // =========================================================================
+    // =========================================================================____
 
     private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
 
