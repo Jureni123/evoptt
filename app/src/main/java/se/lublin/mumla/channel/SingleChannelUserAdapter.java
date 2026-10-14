@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting + Dynamic Avatar Per-User
+ * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting + Safe Hybrid Avatar
  */
 package se.lublin.mumla.channel;
 
@@ -20,9 +20,9 @@ import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.bumptech.glide.request.RequestOptions;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -43,7 +43,8 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     // Simpan channel saat ini untuk cek badge parent
     private IChannel mCurrentChannel;
     
-    // ✅ KONSTANTA STORAGE PER-USER
+    // ✅ KONSTANTA HYBRID AVATAR SYSTEM
+    private static final String PREF_MY_GIF_PATH = "my_gif_path";
     private static final String PREF_AVATAR_PREFIX = "avatar_session_";
 
     public interface OnUserClickListener {
@@ -109,41 +110,52 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             holder.tvLocationComment.setVisibility(View.GONE);
         }
 
-        // 4. ✅ LOGIKA BARU: LOAD AVATAR PER-USER DARI BASE64
+        // 4. ✅ LOGIKA BARU: LOAD AVATAR PER-USER DARI FILE LOKAL (ANTI-CLONING)
         boolean hasCustomAvatar = false;
         
         try {
-            int sessionId = user.getSession();
-            Bitmap avatarBitmap = MumlaActivity.getAvatarForUser(mContext, sessionId);
-            
-            if (avatarBitmap != null) {
-                hasCustomAvatar = true;
+            // Ambil session ID diri sendiri
+            int mySessionId = -1;
+            if (mContext instanceof MumlaActivity) {
+                MumlaActivity activity = (MumlaActivity) mContext;
+                if (activity.getService() != null && activity.getService().isConnected()) {
+                    mySessionId = activity.getService().HumlaSession().getSessionId();
+                }
+            }
+
+            // HANYA PROSES JIKA USER DI LIST INI ADALAH DIRI SENDIRI
+            if (user.getSession() == mySessionId) {
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+                String gifPath = prefs.getString(PREF_MY_GIF_PATH, null);
                 
-                // Load Bitmap ke ImageView dengan Circle Crop via Glide
-                RequestOptions options = new RequestOptions()
-                        .circleCrop()
-                        .placeholder(R.drawable.outline_circle_talking_off)
-                        .error(R.drawable.outline_circle_talking_off);
+                if (gifPath != null && !gifPath.isEmpty()) {
+                    File gifFile = new File(gifPath);
+                    if (gifFile.exists()) {
+                        hasCustomAvatar = true;
                         
-                Glide.with(mContext)
-                     .load(avatarBitmap)
-                     .apply(options)
-                     .into(holder.imgAvatarState);
+                        // Load file asli pakai Glide (Support GIF Animasi + Circle Crop)
+                        RequestOptions options = new RequestOptions()
+                                .circleCrop()
+                                .placeholder(R.drawable.outline_circle_talking_off)
+                                .error(R.drawable.outline_circle_talking_off);
+                                
+                        Glide.with(mContext)
+                             .asDrawable() // Wajib asDrawable biar GIF jalan
+                             .load(gifFile)
+                             .apply(options)
+                             .into(holder.imgAvatarState);
+                    }
+                }
             }
         } catch (Exception e) {
+            // Abaikan jika error, fallback ke bawah
             hasCustomAvatar = false;
         }
 
-        // 5. ✅ JIKA TIDAK ADA AVATAR CUSTOM → PAKAI TALK STATE DRAWABLE
-        // Jika ADA avatar custom → tetap tampilkan avatar, tapi tambah indikator status
+        // 5. ✅ FALLBACK: Jika tidak ada avatar custom → PAKAI TALK STATE DRAWABLE
         if (!hasCustomAvatar) {
             Drawable stateDrawable = getTalkStateDrawable(user);
             holder.imgAvatarState.setImageDrawable(stateDrawable);
-        } else {
-            // Avatar custom sudah di-load oleh Glide di atas
-            // Tambahkan indikator status audio sebagai overlay kecil (opsional)
-            // Untuk sekarang, avatar custom tetap tampil meski user sedang bicara
-            // Ini lebih baik daripada ditimpa total
         }
 
         // Setup Click Listener
@@ -200,7 +212,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         int oldIndex = mUsers.indexOf(user);
         if (oldIndex < 0) return;
 
-        Collections.sort(mUsers, (u1, u2) -> {
+        Collections.sort(mUsers, (u1, u2) {
             boolean t1 = isTalkingState(u1.getTalkState());
             boolean t2 = isTalkingState(u2.getTalkState());
             
@@ -255,9 +267,38 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
 
     /**
      * ✅ HELPER BARU: Ambil Avatar Bitmap untuk User (Dipakai oleh ChannelFragment untuk Header Stage)
+     * Menggunakan logika file lokal yang sama agar konsisten
      */
     public Bitmap getAvatarBitmapForUser(IUser user) {
         if (user == null) return null;
-        return MumlaActivity.getAvatarForUser(mContext, user.getSession());
+        
+        try {
+            if (mContext instanceof MumlaActivity) {
+                MumlaActivity activity = (MumlaActivity) mContext;
+                if (activity.getService() != null && activity.getService().isConnected()) {
+                    int mySessionId = activity.getService().HumlaSession().getSessionId();
+                    
+                    if (user.getSession() == mySessionId) {
+                        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+                        String gifPath = prefs.getString(PREF_MY_GIF_PATH, null);
+                        
+                        if (gifPath != null && !gifPath.isEmpty()) {
+                            File gifFile = new File(gifPath);
+                            if (gifFile.exists()) {
+                                // Decode frame pertama untuk header stage
+                                return Glide.with(mContext)
+                                            .asBitmap()
+                                            .load(gifFile)
+                                            .submit(96, 96)
+                                            .get();
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Fallback diam jika gagal load
+        }
+        return null;
     }
 }
