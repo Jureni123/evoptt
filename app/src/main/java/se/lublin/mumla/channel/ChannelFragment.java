@@ -272,15 +272,6 @@ public class ChannelFragment extends HumlaServiceFragment implements SharedPrefe
             // ✅ INISIALISASI FLOATING SUPPORT ANIMATION
             mImgFloatingSupport = mHeaderSingleCh.findViewById(R.id.img_floating_support);
 
-            // ✅ TOMBOL TEST SEMENTARA (VALIDASI RENDERER)
-            ImageButton btnTestPathGif = mHeaderSingleCh.findViewById(R.id.btn_test_path_gif);
-            if (btnTestPathGif != null) {
-                btnTestPathGif.setOnClickListener(v -> {
-                    playFloatingSupport(R.drawable.ton_clap);
-                    Toast.makeText(requireContext(), "Renderer Tested!", Toast.LENGTH_SHORT).show();
-                });
-            }
-
             // ✅ TOMBOL ADMIN JADI PEMBUKA DYNAMIC SUPPORT PICKER
             mBtnEditInfo = mHeaderSingleCh.findViewById(R.id.btn_edit_channel_info);
             mBtnEditInfo.setOnClickListener(v -> {
