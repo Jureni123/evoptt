@@ -190,4 +190,17 @@
         android:visibility="gone" 
         android:elevation="4dp"/>
 
+    <!-- ✅ TOMBOL TEST LOAD GIF DARI PATH (SEMENTARA FASE 1) -->
+    <ImageButton
+        android:id="@+id/btn_test_path_gif"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:src="@drawable/ic_launcher_foreground"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Test Path GIF"
+        android:elevation="8dp"/>
+
 </FrameLayout>
