@@ -743,6 +743,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     private void loadDrawerFragment(int fragmentId) {
         Class<? extends Fragment> fragmentClass = null;
         Bundle args = new Bundle();
+        
         switch (fragmentId) {
             case DrawerAdapter.ITEM_SERVER:
                 fragmentClass = ChannelFragment.class;
@@ -763,6 +764,15 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             case DrawerAdapter.ITEM_FAVOURITES:
                 fragmentClass = FavouriteServerListFragment.class;
                 break;
+                
+            // ✅ CASE BARU: MENU FOTO PROFIL
+            case DrawerAdapter.ITEM_PROFILE_PHOTO:
+                // SEMENTARA: Tampilkan Toast untuk memastikan klik terdeteksi
+                Toast.makeText(this, "Menu Foto Profil Diklik!", Toast.LENGTH_SHORT).show();
+                
+                // NANTI KITA GANTI DENGAN: openProfilePhotoPicker();
+                return; // Return agar tidak lanjut ke load fragment
+                
             case DrawerAdapter.ITEM_SETTINGS:
                 Intent prefIntent = new Intent(this, SettingsActivity.class);
                 startActivity(prefIntent);
@@ -770,6 +780,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             default:
                 return;
         }
+
         Fragment fragment = Fragment.instantiate(this, fragmentClass.getName(), args);
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.content_frame, fragment, fragmentClass.getName())
