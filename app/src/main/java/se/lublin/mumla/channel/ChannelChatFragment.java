@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * By Jureni123 Modified for Mumla OLED - Unified Parser (Announcement + Channel Info)
+ * By Jureni123 Modified for Mumla OLED - Unified Parser + Floating Support Trigger
  */
 package se.lublin.mumla.channel;
 
@@ -101,6 +101,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
     // ✅ KONSTANTA PARSER UNIFIED
     private static final String ANNOUNCE_PREFIX = "!announce ";
     private static final String INFO_PREFIX = "::INFO::";
+    private static final String SUPPORT_PREFIX = "::SUPPORT::"; // ✅ BARU: Prefix untuk animasi support
 
     private IHumlaObserver mServiceObserver = new HumlaObserver() {
 
@@ -110,7 +111,41 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             if (body == null) return;
 
             // ============================================================
-            // 1. PARSER CHANNEL INFO (::INFO::{...})
+            // 1. PARSER SUPPORT ANIMATION (::SUPPORT::...) - PRIORITAS TERTINGGI
+            // ============================================================
+            if (body.startsWith(SUPPORT_PREFIX)) {
+                try {
+                    String payload = body.substring(SUPPORT_PREFIX.length());
+                    
+                    // Mapping sederhana untuk Fase 1 Testing
+                    int resId = 0;
+                    if ("clap".equals(payload)) {
+                        resId = R.drawable.ton_clap; 
+                    } else if ("heart".equals(payload)) {
+                        // resId = R.drawable.ic_support_heart; // Uncomment kalau sudah ada filenya
+                    } else if ("CUSTOM".equals(payload)) {
+                        // Placeholder untuk fitur user upload nanti
+                        resId = R.drawable.ton_clap; // Fallback sementara ke default
+                    }
+
+                    // Panggil method di parent fragment HANYA jika resource ditemukan
+                    if (resId != 0) {
+                        Fragment parent = getParentFragment();
+                        if (parent instanceof ChannelFragment) {
+                            ((ChannelFragment) parent).playFloatingSupport(resId);
+                            Log.d(TAG, "✅ Support animation triggered: " + payload);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing support", e);
+                }
+                
+                // ⚠️ KRUSIAL: RETURN DI SINI AGAR TIDAK MUNCUL DI CHAT HISTORY
+                return; 
+            }
+
+            // ============================================================
+            // 2. PARSER CHANNEL INFO (::INFO::{...})
             // ============================================================
             if (body.startsWith(INFO_PREFIX)) {
                 try {
@@ -142,7 +177,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             }
 
             // ============================================================
-            // 2. PARSER ANNOUNCEMENT (!announce ...)
+            // 3. PARSER ANNOUNCEMENT (!announce ...)
             // ============================================================
             if (body.startsWith(ANNOUNCE_PREFIX)) {
                 String announcementText = body.substring(ANNOUNCE_PREFIX.length()).trim();
@@ -170,7 +205,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
             }
             
             // ============================================================
-            // 3. CHAT NORMAL (Jika bukan info atau announcement)
+            // 4. CHAT NORMAL (Fallback jika bukan prefix khusus)
             // ============================================================
             addChatMessage(new IChatMessage.TextMessage(message), true);
         }
