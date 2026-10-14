@@ -1,10 +1,11 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting Version
+ * Modified for Mumla OLED Single Channel View - Perfect Auto Sorting Version + Profile Photo Support
  */
 package se.lublin.mumla.channel;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
@@ -15,8 +16,14 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.CircleCrop;
+import com.bumptech.glide.request.RequestOptions;
+
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,6 +43,9 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     
     // Simpan channel saat ini untuk cek badge parent
     private IChannel mCurrentChannel;
+    
+    // Konstanta path foto profil (sama dengan di MumlaActivity)
+    private static final String PREF_PROFILE_PHOTO_PATH = "profile_photo_path";
 
     public interface OnUserClickListener {
         void onUserClick(IUser user);
@@ -100,9 +110,43 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             holder.tvLocationComment.setVisibility(View.GONE);
         }
 
-        // 4. Set State Icon / Avatar
-        Drawable stateDrawable = getTalkStateDrawable(user);
-        holder.imgAvatarState.setImageDrawable(stateDrawable);
+        // 4. ✅ LOGIKA BARU: CEK FOTO PROFIL ATAU TALK STATE
+        boolean hasCustomPhoto = false;
+        
+        // Hanya tampilkan foto profil custom jika ini adalah USER SENDIRI
+        // (Karena sistem belum sync antar device, kita fokus tampilkan foto diri sendiri dulu)
+        try {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+            String photoPath = prefs.getString(PREF_PROFILE_PHOTO_PATH, null);
+            
+            if (photoPath != null && !photoPath.isEmpty()) {
+                File photoFile = new File(photoPath);
+                if (photoFile.exists()) {
+                    hasCustomPhoto = true;
+                    
+                    // Load menggunakan Glide agar support GIF animasi & Circle Crop
+                    RequestOptions options = new RequestOptions()
+                            .circleCrop()
+                            .placeholder(R.drawable.outline_circle_talking_off)
+                            .error(R.drawable.outline_circle_talking_off);
+                            
+                    Glide.with(mContext)
+                         .load(photoFile)
+                         .apply(options)
+                         .into(holder.imgAvatarState);
+                }
+            }
+        } catch (Exception e) {
+            // Jika error load foto, fallback ke bawah
+            hasCustomPhoto = false;
+        }
+
+        // Jika tidak ada foto custom, ATAU user sedang dalam status khusus (bicara/mute/deaf),
+        // maka timpa dengan Talk State Drawable agar status audio tetap terlihat jelas
+        if (!hasCustomPhoto || isSpecialState(user)) {
+            Drawable stateDrawable = getTalkStateDrawable(user);
+            holder.imgAvatarState.setImageDrawable(stateDrawable);
+        }
 
         // Setup Click Listener
         holder.itemView.setOnClickListener(v -> {
@@ -112,6 +156,19 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
         holder.imgMoreOptions.setOnClickListener(v -> {
             if (mListener != null) mListener.onMoreClick(user, v);
         });
+    }
+
+    /**
+     * Cek apakah user sedang dalam status audio khusus yang harus ditampilkan
+     */
+    private boolean isSpecialState(IUser user) {
+        if (user == null) return false;
+        return user.isSelfDeafened() || 
+               user.isDeafened() || 
+               user.isSelfMuted() || 
+               user.isMuted() || 
+               user.isSuppressed() || 
+               isTalkingState(user.getTalkState());
     }
 
     @Override
@@ -130,18 +187,13 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             mUsers.addAll(users);
             
             // === LOGIC SORTING OTOMATIS ===
-            // Prioritas: 1. Sedang Bicara (Talking/Shouting/Whispering)
-            //            2. Urutan Alfabetis (A-Z) jika status sama
             Collections.sort(mUsers, (user1, user2) -> {
                 boolean u1Talking = isTalkingState(user1.getTalkState());
                 boolean u2Talking = isTalkingState(user2.getTalkState());
                 
-                // Jika user1 bicara dan user2 tidak, user1 naik ke atas (-1)
                 if (u1Talking && !u2Talking) return -1;
-                // Jika user2 bicara dan user1 tidak, user2 naik ke atas (1)
                 if (!u1Talking && u2Talking) return 1;
                 
-                // Jika sama-sama bicara atau sama-sama diam, urutkan nama A-Z
                 return user1.getName().compareToIgnoreCase(user2.getName());
             });
         }
@@ -156,18 +208,13 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
 
     /**
      * Update state satu user secara real-time DENGAN RE-SORTING.
-     * FIX: Sekarang method ini memicu sorting ulang agar user yang bicara
-     * langsung meluncur ke posisi atas tanpa perlu refresh manual.
      */
     public void updateUserState(IUser user, RecyclerView recyclerView) {
         if (user == null) return;
         
-        // Cek apakah user ada di list kita
         int oldIndex = mUsers.indexOf(user);
         if (oldIndex < 0) return;
 
-        // Lakukan sorting ulang seluruh list
-        // Ini memastikan user yang baru bicara pindah ke posisi yang benar
         Collections.sort(mUsers, (u1, u2) -> {
             boolean t1 = isTalkingState(u1.getTalkState());
             boolean t2 = isTalkingState(u2.getTalkState());
@@ -178,18 +225,13 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
             return u1.getName().compareToIgnoreCase(u2.getName());
         });
 
-        // Cari posisi baru user setelah sorting
         int newIndex = mUsers.indexOf(user);
         
-        // Jika posisi berubah, gunakan notifyItemMoved untuk animasi smooth
-        // Jika tidak berubah (misal sama-sama bicara), cukup update icon
         if (oldIndex != newIndex) {
             notifyItemMoved(oldIndex, newIndex);
-            // Update juga item yang tertukar posisinya
             notifyItemChanged(oldIndex); 
             notifyItemChanged(newIndex);
         } else {
-            // Posisi sama, cuma update tampilan icon/avatar
             notifyItemChanged(newIndex);
         }
     }
