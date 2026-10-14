@@ -101,7 +101,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
     // ✅ KONSTANTA PARSER UNIFIED
     private static final String ANNOUNCE_PREFIX = "!announce ";
     private static final String INFO_PREFIX = "::INFO::";
-    private static final String SUPPORT_PREFIX = "::SUPPORT::"; // ✅ BARU: Prefix untuk animasi support
+    private static final String SUPPORT_PREFIX = "::SUPPORT::"; // ✅ BARU
 
     private IHumlaObserver mServiceObserver = new HumlaObserver() {
 
@@ -125,7 +125,7 @@ public class ChannelChatFragment extends HumlaServiceFragment implements ChatTar
                         // resId = R.drawable.ic_support_heart; // Uncomment kalau sudah ada filenya
                     } else if ("CUSTOM".equals(payload)) {
                         // Placeholder untuk fitur user upload nanti
-                        resId = R.drawable.ton_clap; // Fallback sementara ke default
+                        resId = R.drawable.ton_clap; // Fallback sementara
                     }
 
                     // Panggil method di parent fragment HANYA jika resource ditemukan
