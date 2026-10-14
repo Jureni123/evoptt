@@ -28,6 +28,8 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -37,6 +39,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.text.InputType;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -95,6 +98,7 @@ import java.util.Locale;
 import se.lublin.humla.HumlaService;
 import se.lublin.humla.IHumlaService;
 import se.lublin.humla.IHumlaSession;
+import se.lublin.humla.model.IChannel;
 import se.lublin.humla.model.Server;
 import se.lublin.humla.net.HandshakeFailure;
 import se.lublin.humla.net.HumlaCertificateGenerator;
@@ -139,7 +143,10 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
 
     // ✅ KONSTANTA BARU UNTUK FITUR FOTO PROFIL
     private static final int REQUEST_CODE_PICK_PROFILE = 2001;
-    private static final String PREF_PROFILE_PHOTO_PATH = "profile_photo_path";
+    private static final String PREF_AVATAR_PREFIX = "avatar_session_";
+    private static final String AVATAR_PROTOCOL_PREFIX = "::AVATAR::";
+    private static final int AVATAR_SIZE_PX = 128;
+    private static final int MAX_AVATAR_BASE64_LENGTH = 50000;
 
     public static final String EXTRA_DRAWER_FRAGMENT = "drawer_fragment";
 
@@ -229,6 +236,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             mDrawerAdapter.notifyDataSetChanged();
             supportInvalidateOptionsMenu();
             updateConnectionState(getService());
+            
+            // ✅ AUTO-RESEND AVATAR SAAT CONNECT
+            resendMyAvatarToChannel();
         }
 
         @Override
@@ -276,7 +286,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                     MumlaTrustStore.saveTrustStore(MumlaActivity.this, trustStore);
                     Log.d(TAG, "Auto-trusted certificate for embedded server: " + alias);
                     connectToServer(lastServer);
-                    return; // Keluar, jangan tampilkan dialog
+                    return;
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to auto-trust embedded server cert", e);
                 }
@@ -453,13 +463,11 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        // --- PENTING: Sembunyikan App Bar jika belum setup agar Welcome Screen Full Screen ---
         boolean isEmbeddedSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
                 .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
         if (!isEmbeddedSetupDone && getSupportActionBar() != null) {
             getSupportActionBar().hide();
         }
-        // ------------------------------------------------------------------------------------
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -541,16 +549,14 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
 
         if (savedInstanceState == null) {
-            // --- MATIKAN DIALOG NATIVE FIRST-RUN JIKA KITA HANDLE SENDIRI ---
             if (!isEmbeddedSetupDone) {
-                mSettings.setFirstRun(false); // Cegah dialog "Welcome to Mumla" muncul
+                mSettings.setFirstRun(false);
             } else {
                 if (mSettings.isFirstRun()) {
                     mSettings.setFirstRun(false);
                 }
                 new StartupAction().execute(this);
             }
-            // ----------------------------------------------------------------
         }
     }
 
@@ -566,7 +572,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         Intent connectIntent = new Intent(this, MumlaService.class);
         bindService(connectIntent, mConnection, 0);
 
-        // --- TAMPILKAN DIALOG NAMA DI ATAS LAYAR FAVORITES JIKA BELUM SETUP ---
         if (!EMBEDDED_SERVER_HOST.isEmpty() && !mAutoConnectAttempted) {
             boolean isSetupDone = PreferenceManager.getDefaultSharedPreferences(this)
                     .getBoolean(PREF_EMBEDDED_SETUP_DONE, false);
@@ -579,7 +584,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 }
             }
         }
-        // ----------------------------------------------------------------------
     }
 
     @Override
@@ -772,10 +776,9 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 fragmentClass = FavouriteServerListFragment.class;
                 break;
                 
-            // ✅ CASE BARU: MENU FOTO PROFIL
             case DrawerAdapter.ITEM_PROFILE_PHOTO:
                 checkAndOpenGallery();
-                return; // Return agar tidak lanjut ke load fragment
+                return;
                 
             case DrawerAdapter.ITEM_SETTINGS:
                 Intent prefIntent = new Intent(this, SettingsActivity.class);
@@ -926,7 +929,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                 connectToServerWithPerm();
                 break;
                 
-            // ✅ HANDLE HASIL PERMISSION FOTO PROFIL
             case REQUEST_CODE_PICK_PROFILE:
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     openGalleryPicker();
@@ -1092,7 +1094,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
     }
 
     // =========================================================================
-    // --- METODE PEMBANTU UNTUK AUTO-CONNECT (LOGIKA BARU YANG LEBIH AMAN) ---
+    // --- METODE PEMBANTU UNTUK AUTO-CONNECT ---
     // =========================================================================
     
     private void showEmbeddedServerCredentialsDialog(final Server embedded) {
@@ -1125,8 +1127,6 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
                         username = mSettings.getDefaultUsername();
                     }
                     embedded.setUsername(username);
-                    
-                    // 1. Generate Cert Dulu (Diam-diam di background)
                     generateEmbeddedCertificateSilently(embedded);
                 })
                 .show();
@@ -1155,40 +1155,30 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             @Override
             protected void onPostExecute(DatabaseCertificate result) {
                 if (result != null) {
-                    // 2. Set Cert ID
                     mSettings.setDefaultCertificateId(result.getId());
                 }
                 
-                // 3. BARU Simpan Server ke DB (setelah Cert siap & Nama ada)
                 if (embedded.getId() == -1L) {
                     mDatabase.addServer(embedded);
                 } else {
                     mDatabase.updateServer(embedded);
                 }
                 
-                // 4. Tandai setup selesai
                 PreferenceManager.getDefaultSharedPreferences(MumlaActivity.this)
                         .edit()
                         .putBoolean(PREF_EMBEDDED_SETUP_DONE, true)
                         .apply();
                 
-                // 5. PENTING: Tampilkan UI Favorites dulu, baru connect (agar user bisa klik manual jika gagal)
                 showAppBarAndLoadFavoritesAndConnect(embedded);
             }
         }.execute();
     }
 
-    // Metode Jembatan: Memunculkan App Bar, Memuat Card Server, lalu Auto-Connect
     public void showAppBarAndLoadFavoritesAndConnect(final Server server) {
-        // 1. Munculkan kembali App Bar
         if (getSupportActionBar() != null) {
             getSupportActionBar().show();
         }
-        
-        // 2. Muat ulang Fragment Favorites agar Card Server langsung terlihat di layar
         loadDrawerFragment(DrawerAdapter.ITEM_FAVOURITES);
-        
-        // 3. Beri jeda sangat singkat (500ms) agar UI ter-render sempurna, baru lakukan auto-connect
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -1207,26 +1197,20 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
             }
         }
         
-        // Buat objek saja di memori, JANGAN simpan ke DB dulu (mencegah data kosong)
         return new Server(-1L, EMBEDDED_SERVER_NAME, EMBEDDED_SERVER_HOST, EMBEDDED_SERVER_PORT, "", "");
     }
 
     // =========================================================================
-    // === PUBLIC METHOD UNTUK MEMBUKA DRAWER DARI FRAGMENT (BARU!) ===
+    // === PUBLIC METHOD UNTUK MEMBUKA DRAWER DARI FRAGMENT ===
     // =========================================================================
-    /**
-     * Membuka Navigation Drawer dari Fragment manapun.
-     * Aman dipanggil karena melakukan null check pada mDrawerLayout.
-     */
     public void openNavigationDrawer() {
         if (mDrawerLayout != null) {
             mDrawerLayout.openDrawer(GravityCompat.START);
         }
     }
-    // =========================================================================
 
     // =========================================================================
-    // === METODE BARU: UPLOAD & SIMPAN FOTO PROFIL ===
+    // === FITUR FOTO PROFIL DINAMIS (PER SESSION ID + BASE64 + BROADCAST) ===
     // =========================================================================
     
     /**
@@ -1258,7 +1242,7 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
      */
     private void openGalleryPicker() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("image/*"); // Support JPG, PNG, GIF
+        intent.setType("image/*");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         startActivityForResult(Intent.createChooser(intent, "Pilih Foto Profil"), REQUEST_CODE_PICK_PROFILE);
     }
@@ -1273,51 +1257,191 @@ public class MumlaActivity extends BaseActivity implements ListView.OnItemClickL
         if (requestCode == REQUEST_CODE_PICK_PROFILE && resultCode == RESULT_OK && data != null) {
             Uri imageUri = data.getData();
             if (imageUri != null) {
-                saveProfilePhotoLocally(imageUri);
+                processAndBroadcastAvatar(imageUri);
             }
         }
     }
 
     /**
-     * Simpan Foto ke Internal Storage App
+     * ✅ METODE UTAMA: Resize → Base64 → Simpan Per-Session → Broadcast ke Channel
      */
-    private void saveProfilePhotoLocally(Uri sourceUri) {
-        try {
-            // Buat folder khusus profil
-            File profilesDir = new File(getFilesDir(), "profiles");
-            if (!profilesDir.exists()) profilesDir.mkdirs();
-            
-            // Nama file unik berdasarkan waktu
-            String fileName = "profile_" + System.currentTimeMillis() + ".jpg";
-            File destFile = new File(profilesDir, fileName);
-            
-            // Copy stream dari URI galeri ke file internal
-            InputStream inputStream = getContentResolver().openInputStream(sourceUri);
-            FileOutputStream outputStream = new FileOutputStream(destFile);
-            
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
-            }
-            
-            inputStream.close();
-            outputStream.close();
-            
-            // Simpan path absolut di SharedPreferences
-            PreferenceManager.getDefaultSharedPreferences(this)
-                .edit()
-                .putString(PREF_PROFILE_PHOTO_PATH, destFile.getAbsolutePath())
-                .apply();
+    private void processAndBroadcastAvatar(Uri sourceUri) {
+        new Thread(() -> {
+            try {
+                // 1. DETEKSI FORMAT ASLI (GIF/PNG/JPG)
+                String mimeType = getContentResolver().getType(sourceUri);
+                Bitmap.CompressFormat compressFormat;
+                String formatSuffix;
                 
-            Toast.makeText(this, "Foto profil berhasil disimpan!", Toast.LENGTH_SHORT).show();
-            
+                if (mimeType != null && mimeType.contains("gif")) {
+                    // Untuk GIF, kita simpan sebagai PNG agar tidak kehilangan kualitas
+                    // (GIF animasi via Base64 terlalu besar untuk chat Mumble)
+                    compressFormat = Bitmap.CompressFormat.PNG;
+                    formatSuffix = "png";
+                } else if (mimeType != null && mimeType.contains("png")) {
+                    compressFormat = Bitmap.CompressFormat.PNG;
+                    formatSuffix = "png";
+                } else {
+                    compressFormat = Bitmap.CompressFormat.JPEG;
+                    formatSuffix = "jpg";
+                }
+
+                // 2. LOAD & RESIZE KE 128x128
+                InputStream inputStream = getContentResolver().openInputStream(sourceUri);
+                Bitmap originalBitmap = BitmapFactory.decodeStream(inputStream);
+                if (inputStream != null) inputStream.close();
+                
+                if (originalBitmap == null) {
+                    runOnUiThread(() -> Toast.makeText(this, "Gagal memuat gambar", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                // Resize ke 128x128 dengan aspect ratio terjaga
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(originalBitmap, AVATAR_SIZE_PX, AVATAR_SIZE_PX, true);
+                originalBitmap.recycle();
+
+                // 3. CONVERT KE BASE64
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                int quality = 85;
+                resizedBitmap.compress(compressFormat, quality, baos);
+                
+                // Kalau masih terlalu besar, turunkan kualitas
+                while (baos.size() > MAX_AVATAR_BASE64_LENGTH && quality > 20) {
+                    quality -= 15;
+                    baos.reset();
+                    resizedBitmap.compress(compressFormat, quality, baos);
+                }
+                resizedBitmap.recycle();
+
+                byte[] imageBytes = baos.toByteArray();
+                String base64String = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+                
+                // Format: "png:base64data..." atau "jpg:base64data..."
+                String avatarPayload = formatSuffix + ":" + base64String;
+
+                // 4. SIMPAN KE SHARED PREFERENCES PER SESSION ID
+                int selfSessionId = -1;
+                if (mService != null && mService.isConnected()) {
+                    try {
+                        selfSessionId = mService.HumlaSession().getSessionId();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to get session ID", e);
+                    }
+                }
+
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+                
+                if (selfSessionId > 0) {
+                    prefs.edit()
+                         .putString(PREF_AVATAR_PREFIX + selfSessionId, avatarPayload)
+                         .apply();
+                }
+                
+                // Juga simpan sebagai "my_avatar" untuk referensi cepat
+                prefs.edit()
+                     .putString("my_avatar_payload", avatarPayload)
+                     .apply();
+
+                // 5. BROADCAST KE CHANNEL
+                if (mService != null && mService.isConnected() && selfSessionId > 0) {
+                    try {
+                        IHumlaSession session = mService.HumlaSession();
+                        IChannel currentCh = session.getSessionChannel();
+                        if (currentCh != null) {
+                            String message = AVATAR_PROTOCOL_PREFIX + avatarPayload;
+                            session.sendChannelTextMessage(currentCh.getId(), message, false);
+                            Log.d(TAG, "✅ Avatar broadcast sent! Size: " + avatarPayload.length() + " chars");
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to broadcast avatar", e);
+                    }
+                }
+
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Foto profil berhasil diperbarui!", Toast.LENGTH_SHORT).show();
+                    // Refresh channel view agar avatar langsung muncul
+                    refreshChannelFragment();
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Gagal proses avatar", e);
+                runOnUiThread(() -> Toast.makeText(this, "Gagal memproses foto", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    /**
+     * ✅ RESEND AVATAR SENDIRI KE CHANNEL (Saat connect atau user baru join)
+     */
+    public void resendMyAvatarToChannel() {
+        if (mService == null || !mService.isConnected()) return;
+        
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        String myAvatar = prefs.getString("my_avatar_payload", null);
+        
+        if (myAvatar == null || myAvatar.isEmpty()) return;
+        
+        try {
+            IHumlaSession session = mService.HumlaSession();
+            IChannel currentCh = session.getSessionChannel();
+            if (currentCh != null) {
+                String message = AVATAR_PROTOCOL_PREFIX + myAvatar;
+                session.sendChannelTextMessage(currentCh.getId(), message, false);
+                Log.d(TAG, "✅ Avatar re-sent on connect");
+            }
         } catch (Exception e) {
-            Log.e(TAG, "Gagal simpan foto profil", e);
-            Toast.makeText(this, "Gagal menyimpan foto", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Failed to resend avatar", e);
         }
     }
-    // =========================================================================____
+
+    /**
+     * ✅ REFRESH CHANNEL FRAGMENT (Trigger update UI)
+     */
+    private void refreshChannelFragment() {
+        Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.content_frame);
+        if (fragment instanceof ChannelFragment) {
+            // Trigger refresh via reflection atau method publik
+            try {
+                java.lang.reflect.Method method = fragment.getClass().getDeclaredMethod("refreshSingleChannelView");
+                method.setAccessible(true);
+                method.invoke(fragment);
+            } catch (Exception e) {
+                Log.w(TAG, "Could not refresh channel fragment", e);
+            }
+        }
+    }
+
+    /**
+     * ✅ STATIC HELPER: Decode Base64 Avatar Payload ke Bitmap
+     * Dipakai oleh Adapter dan Fragment lain
+     */
+    public static Bitmap decodeAvatarPayload(String payload) {
+        if (payload == null || payload.isEmpty()) return null;
+        
+        try {
+            // Format: "png:base64..." atau "jpg:base64..."
+            int colonIndex = payload.indexOf(':');
+            if (colonIndex < 0) return null;
+            
+            String base64Data = payload.substring(colonIndex + 1);
+            byte[] decodedBytes = Base64.decode(base64Data, Base64.NO_WRAP);
+            return BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to decode avatar payload", e);
+            return null;
+        }
+    }
+
+    /**
+     * ✅ STATIC HELPER: Ambil Avatar Bitmap untuk User Tertentu
+     */
+    public static Bitmap getAvatarForUser(Context context, int sessionId) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        String payload = prefs.getString(PREF_AVATAR_PREFIX + sessionId, null);
+        return decodeAvatarPayload(payload);
+    }
+
+    // =========================================================================
 
     private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
 
