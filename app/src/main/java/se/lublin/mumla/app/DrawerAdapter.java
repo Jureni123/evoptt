@@ -1,20 +1,7 @@
 /*
  * Copyright (C) 2014 Andrew Comminos
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * Modified for Mumla OLED - Added Profile Photo Menu Item
  */
-
 package se.lublin.mumla.app;
 
 import android.content.Context;
@@ -29,29 +16,29 @@ import android.widget.TextView;
 import se.lublin.mumla.R;
 
 /**
- * Created by andrew on 01/08/13.
- * Modified: Added Profile Photo menu item
+ * Adapter untuk Navigation Drawer Mumla OLED.
+ * Menampilkan daftar menu termasuk opsi baru "Foto Profil".
  */
 public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
 
     /**
-     * Provides context for the drawer module.
+     * Interface untuk mendapatkan status koneksi dari Activity utama.
      */
     public interface DrawerDataProvider {
-        public boolean isConnected();
-        public String getConnectedServerName();
+        boolean isConnected();
+        String getConnectedServerName();
     }
 
-    // Drawer rows, integer value is id
+    // === KONSTANTA ID MENU DRAWER ===
     public static final int HEADER_CONNECTED_SERVER = 0;
     public static final int ITEM_SERVER = 1;
     public static final int ITEM_PINNED_CHANNELS = 2;
     public static final int ITEM_INFO = 3;
-    public static final int ITEM_ACCESS_TOKENS = 4;
     
-    // ✅ MENU BARU: FOTO PROFIL
+    // ✅ ID BARU UNTUK MENU FOTO PROFIL
     public static final int ITEM_PROFILE_PHOTO = 7; 
-
+    
+    public static final int ITEM_ACCESS_TOKENS = 4;
     public static final int HEADER_SERVERS = 5;
     public static final int ITEM_FAVOURITES = 6;
     public static final int HEADER_GENERAL = 9;
@@ -60,6 +47,7 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
     private static final int HEADER_TYPE = 0;
     private static final int ITEM_TYPE = 1;
 
+    // === CLASS DATA ROW ===
     public static class DrawerRow {
         int id;
         String title;
@@ -91,26 +79,33 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
         super(context, 0);
         mProvider = provider;
         
-        add(new DrawerAdapter.DrawerHeader(HEADER_CONNECTED_SERVER, context.getString(R.string.drawer_not_connected)));
-        add(new DrawerAdapter.DrawerItem(ITEM_SERVER, context.getString(R.string.drawer_server), R.drawable.ic_action_channels));
-        add(new DrawerAdapter.DrawerItem(ITEM_PINNED_CHANNELS, context.getString(R.string.drawer_pinned), R.drawable.ic_action_comment));
-        add(new DrawerAdapter.DrawerItem(ITEM_INFO, context.getString(R.string.information), R.drawable.ic_action_info_dark));
+        // --- GRUP: SATU UNTUK SEMUA ---
+        add(new DrawerHeader(HEADER_CONNECTED_SERVER, context.getString(R.string.drawer_not_connected)));
+        add(new DrawerItem(ITEM_SERVER, context.getString(R.string.drawer_server), R.drawable.ic_action_channels));
+        add(new DrawerItem(ITEM_PINNED_CHANNELS, context.getString(R.string.drawer_pinned), R.drawable.ic_action_comment));
+        add(new DrawerItem(ITEM_INFO, context.getString(R.string.information), R.drawable.ic_action_info_dark));
         
-        // ✅ TAMBAHKAN MENU FOTO PROFIL DI SINI
-        // Menggunakan ic_action_info_dark sementara agar tidak error saat build jika icon kamera belum ada
-        add(new DrawerAdapter.DrawerItem(ITEM_PROFILE_PHOTO, "Foto Profil", R.drawable.ic_action_info_dark)); 
+        // ✅ LANGKAH 1: TAMBAHKAN MENU FOTO PROFIL DI BAWAH INFORMATION
+        // Gunakan icon ic_action_person atau ic_camera_alt jika ada. 
+        // Jika belum ada, pakai ic_action_info_dark sementara biar build sukses.
+        add(new DrawerItem(ITEM_PROFILE_PHOTO, "Foto Profil", R.drawable.ic_action_info_dark)); 
         
-        add(new DrawerAdapter.DrawerItem(ITEM_ACCESS_TOKENS, context.getString(R.string.drawer_tokens), R.drawable.ic_action_save));
-        add(new DrawerAdapter.DrawerHeader(HEADER_SERVERS, context.getString(R.string.drawer_header_servers)));
-        add(new DrawerAdapter.DrawerItem(ITEM_FAVOURITES, context.getString(R.string.drawer_favorites), R.drawable.ic_action_favourite_on));
-        add(new DrawerAdapter.DrawerHeader(HEADER_GENERAL, context.getString(R.string.general)));
-        add(new DrawerAdapter.DrawerItem(ITEM_SETTINGS, context.getString(R.string.action_settings), R.drawable.ic_action_settings));
+        add(new DrawerItem(ITEM_ACCESS_TOKENS, context.getString(R.string.drawer_tokens), R.drawable.ic_action_save));
+        
+        // --- GRUP: SERVERS ---
+        add(new DrawerHeader(HEADER_SERVERS, context.getString(R.string.drawer_header_servers)));
+        add(new DrawerItem(ITEM_FAVOURITES, context.getString(R.string.drawer_favorites), R.drawable.ic_action_favourite_on));
+        
+        // --- GRUP: GENERAL ---
+        add(new DrawerHeader(HEADER_GENERAL, context.getString(R.string.general)));
+        add(new DrawerItem(ITEM_SETTINGS, context.getString(R.string.action_settings), R.drawable.ic_action_settings));
     }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         View v = convertView;
         int viewType = getItemViewType(position);
+        
         if(v == null) {
             if(viewType == HEADER_TYPE)
                 v = LayoutInflater.from(getContext()).inflate(R.layout.list_drawer_header, parent, false);
@@ -120,7 +115,7 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
 
         if(viewType == HEADER_TYPE) {
             DrawerHeader header = (DrawerHeader) getItem(position);
-            TextView title = (TextView) v.findViewById(R.id.drawer_header_title);
+            TextView title = v.findViewById(R.id.drawer_header_title);
 
             switch((int) getItemId(position)) {
                 case HEADER_CONNECTED_SERVER:
@@ -136,16 +131,19 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
             }
         } else if(viewType == ITEM_TYPE) {
             DrawerItem item = (DrawerItem) getItem(position);
-            TextView title = (TextView) v.findViewById(R.id.drawer_item_title);
-            ImageView icon = (ImageView) v.findViewById(R.id.drawer_item_icon);
+            TextView title = v.findViewById(R.id.drawer_item_title);
+            ImageView icon = v.findViewById(R.id.drawer_item_icon);
+            
             title.setText(item.title);
             icon.setImageResource(item.icon);
 
             boolean enabled = isEnabled(position);
 
+            // Atur warna teks dan icon berdasarkan status enabled/disabled
             int textColor = title.getCurrentTextColor();
             textColor &= 0x00FFFFFF; 
             textColor |= enabled ? 0xFF000000 : 0x55000000; 
+            
             title.setTextColor(textColor);
             icon.setColorFilter(textColor, PorterDuff.Mode.MULTIPLY);
         }
@@ -173,9 +171,9 @@ public class DrawerAdapter extends ArrayAdapter<DrawerAdapter.DrawerRow> {
             switch ((int) getItemId(position)) {
                 case ITEM_SERVER:
                 case ITEM_INFO:
-                case ITEM_PROFILE_PHOTO: // ✅ AKTIFKAN MENU FOTO PROFIL SAAT CONNECTED
                 case ITEM_ACCESS_TOKENS:
                 case ITEM_PINNED_CHANNELS:
+                case ITEM_PROFILE_PHOTO: // ✅ AKTIFKAN MENU FOTO PROFIL HANYA SAAT CONNECTED
                     return mProvider.isConnected();
                 default:
                     return true;
