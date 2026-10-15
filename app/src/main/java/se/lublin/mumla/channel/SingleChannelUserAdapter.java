@@ -289,7 +289,7 @@ public class SingleChannelUserAdapter extends RecyclerView.Adapter<SingleChannel
     }
 
     /**
-     * ✅ HELPER BARU: Ambil Avatar Bitmap untuk User (Dipakai oleh ChannelFragment untuk Header Stage)
+     * ✅ HELPER BARU: Ambil Avatar Bitmap untuk User /(Dipakai oleh ChannelFragment untuk Header Stage)
      * Menggunakan logika file lokal yang sama agar konsisten
      */
     public Bitmap getAvatarBitmapForUser(IUser user) {
